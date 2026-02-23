@@ -15,3 +15,7 @@ local.properties
 
 # Assets binary - commit GPG binary via git lfs atau langsung
 # app/src/main/assets/gpg
+
+# Signing keys - NEVER commit these
+*.p12
+*.pem
