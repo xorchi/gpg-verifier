@@ -68,7 +68,7 @@ class GpgExecutor(private val context: Context) {
                 ?: return SignResult(false, errorMessage = "Secret key tidak ditemukan")
             val secKey = secRing.secretKey
             val privateKey = secKey.extractPrivateKey(
-                JcePBESecretKeyDecryptorBuilder().setProvider("BC").build(passphrase.toCharArray())
+                org.bouncycastle.openpgp.operator.bc.BcPBESecretKeyDecryptorBuilder(org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider()).build(passphrase.toCharArray())
             )
             val ext = when (mode) {
                 SignMode.DETACH_ARMOR -> ".sig.asc"
@@ -239,7 +239,7 @@ class GpgExecutor(private val context: Context) {
                     val sec = ring.getSecretKey(enc.keyID) ?: continue
                     privKey = try {
                         sec.extractPrivateKey(
-                            JcePBESecretKeyDecryptorBuilder().setProvider("BC").build(passphrase.toCharArray())
+                            org.bouncycastle.openpgp.operator.bc.BcPBESecretKeyDecryptorBuilder(org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider()).build(passphrase.toCharArray())
                         )
                     } catch (e: Exception) { continue }
                     pked = enc; break@outer
@@ -286,7 +286,7 @@ class GpgExecutor(private val context: Context) {
         AppLogger.log("DEBUG: generateKey() name=${params.name} email=${params.email}")
         return try {
             val now = Date()
-            val digestCalcProvider = JcaPGPDigestCalculatorProviderBuilder().setProvider("BC").build()
+            val digestCalcProvider = org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider()
             val sha1Calc = digestCalcProvider.get(HashAlgorithmTags.SHA1)
 
             // Primary key: RSA untuk signing dan certify
@@ -313,8 +313,7 @@ class GpgExecutor(private val context: Context) {
                 append(" <${params.email}>")
             }
 
-            val encryptor = JcePBESecretKeyEncryptorBuilder(SymmetricKeyAlgorithmTags.AES_256)
-                .setProvider("BC").build(params.passphrase.toCharArray())
+            val encryptor = org.bouncycastle.openpgp.operator.bc.BcPBESecretKeyEncryptorBuilder(SymmetricKeyAlgorithmTags.AES_256, org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider().get(HashAlgorithmTags.SHA256)).build(params.passphrase.toCharArray())
 
             // Subpacket untuk primary key
             val primarySubGen = PGPSignatureSubpacketGenerator().apply {
