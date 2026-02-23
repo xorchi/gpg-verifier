@@ -1,0 +1,3 @@
+-keep class com.gpgverifier.** { *; }
+-keepattributes *Annotation*
+-keepattributes SourceFile,LineNumberTable

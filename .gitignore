@@ -1,0 +1,17 @@
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Keystore - JANGAN commit file ini!
+*.jks
+*.keystore
+
+# Assets binary - commit GPG binary via git lfs atau langsung
+# app/src/main/assets/gpg
