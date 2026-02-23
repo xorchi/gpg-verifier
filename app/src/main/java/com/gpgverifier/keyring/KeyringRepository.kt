@@ -3,90 +3,94 @@ package com.gpgverifier.keyring
 import android.content.Context
 import android.net.Uri
 import com.gpgverifier.executor.GpgExecutor
-import com.gpgverifier.model.GpgKey
-import com.gpgverifier.model.GpgOperationResult
-import com.gpgverifier.model.VerificationResult
+import com.gpgverifier.model.*
 import com.gpgverifier.util.AppLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 
 class KeyringRepository(context: Context) {
-    private val executor = GpgExecutor(context)
-    private val cacheDir = context.cacheDir
+    private val executor  = GpgExecutor(context)
+    private val cacheDir  = context.cacheDir
 
+    // ── Verify ───────────────────────────────────────────────────────────────
     suspend fun verify(dataUri: Uri, sigUri: Uri, context: Context): VerificationResult =
         withContext(Dispatchers.IO) {
             AppLogger.log("DEBUG: verify dipanggil")
+            val dataFile = uriToTempFile(dataUri, context, "data_file")
+            val sigFile  = uriToTempFile(sigUri,  context, "sig_file")
             try {
-                val dataFile = uriToTempFile(dataUri, context, "data_file")
-                val sigFile = uriToTempFile(sigUri, context, "sig_file")
-                AppLogger.log("DEBUG: Temp files created: ${dataFile.absolutePath}")
-                try {
-                    val result = executor.verify(dataFile, sigFile)
-                    AppLogger.log("INFO: Verifikasi sukses")
-                    result
-                } finally {
-                    dataFile.delete()
-                    sigFile.delete()
+                executor.verify(dataFile, sigFile).also {
+                    AppLogger.log("INFO: Verifikasi ${if (it.isValid) "sukses" else "gagal"}")
                 }
-            } catch (e: Exception) {
-                AppLogger.log("ERROR verify: ${e.message}\n${e.stackTraceToString()}")
-                throw e
-            }
+            } finally { dataFile.delete(); sigFile.delete() }
         }
 
+    // ── Sign ─────────────────────────────────────────────────────────────────
+    suspend fun sign(
+        dataUri: Uri, context: Context,
+        keyFingerprint: String, mode: SignMode, passphrase: String
+    ): SignResult = withContext(Dispatchers.IO) {
+        val dataFile = uriToTempFile(dataUri, context, "sign_input")
+        try { executor.sign(dataFile, keyFingerprint, mode, passphrase) }
+        finally { dataFile.delete() }
+    }
+
+    // ── Encrypt ──────────────────────────────────────────────────────────────
+    suspend fun encrypt(
+        dataUri: Uri, context: Context,
+        recipientFingerprints: List<String>, armor: Boolean
+    ): EncryptResult = withContext(Dispatchers.IO) {
+        val dataFile = uriToTempFile(dataUri, context, "enc_input")
+        try { executor.encrypt(dataFile, recipientFingerprints, armor) }
+        finally { dataFile.delete() }
+    }
+
+    // ── Decrypt ──────────────────────────────────────────────────────────────
+    suspend fun decrypt(
+        dataUri: Uri, context: Context, passphrase: String
+    ): DecryptResult = withContext(Dispatchers.IO) {
+        val dataFile = uriToTempFile(dataUri, context, "dec_input")
+        try { executor.decrypt(dataFile, passphrase) }
+        finally { dataFile.delete() }
+    }
+
+    // ── Keys ─────────────────────────────────────────────────────────────────
     suspend fun listPublicKeys(): List<GpgKey> = withContext(Dispatchers.IO) {
-        try {
-            AppLogger.log("DEBUG: Mencoba listPublicKeys")
-            executor.listKeys()
-        } catch (e: Exception) {
-            AppLogger.log("ERROR listPublicKeys: ${e.message}")
-            emptyList()
-        }
+        try { AppLogger.log("DEBUG: Mencoba listPublicKeys"); executor.listKeys() }
+        catch (e: Exception) { AppLogger.log("ERROR listPublicKeys: ${e.message}"); emptyList() }
     }
 
     suspend fun listSecretKeys(): List<GpgKey> = withContext(Dispatchers.IO) {
-        try {
-            AppLogger.log("DEBUG: Mencoba listSecretKeys")
-            executor.listSecretKeys()
-        } catch (e: Exception) {
-            AppLogger.log("ERROR listSecretKeys: ${e.message}")
-            emptyList()
-        }
+        try { executor.listSecretKeys() }
+        catch (e: Exception) { AppLogger.log("ERROR listSecretKeys: ${e.message}"); emptyList() }
     }
 
-    suspend fun importKeyFromFile(uri: Uri, context: Context): GpgOperationResult = withContext(Dispatchers.IO) {
-        try {
+    suspend fun importKeyFromFile(uri: Uri, context: Context): GpgOperationResult =
+        withContext(Dispatchers.IO) {
             val keyFile = uriToTempFile(uri, context, "import_key")
             try { executor.importKey(keyFile) } finally { keyFile.delete() }
-        } catch (e: Exception) {
-            AppLogger.log("ERROR importKey: ${e.message}")
-            throw e
         }
-    }
 
-    suspend fun importKeyFromKeyserver(keyId: String, keyserver: String): GpgOperationResult = withContext(Dispatchers.IO) {
-        try { executor.importKeyFromKeyserver(keyId, keyserver) } catch (e: Exception) { throw e }
-    }
+    suspend fun importKeyFromKeyserver(keyId: String, keyserver: String): GpgOperationResult =
+        withContext(Dispatchers.IO) { executor.importKeyFromKeyserver(keyId, keyserver) }
 
-    suspend fun trustKey(fingerprint: String, trustLevel: Int): GpgOperationResult = withContext(Dispatchers.IO) {
-        try { executor.trustKey(fingerprint, trustLevel) } catch (e: Exception) { throw e }
-    }
+    suspend fun generateKey(params: KeyGenParams): GpgOperationResult =
+        withContext(Dispatchers.IO) { executor.generateKey(params) }
 
-    suspend fun deleteKey(fingerprint: String): GpgOperationResult = withContext(Dispatchers.IO) {
-        try { executor.deleteKey(fingerprint) } catch (e: Exception) { throw e }
-    }
+    suspend fun trustKey(fingerprint: String, trustLevel: Int): GpgOperationResult =
+        withContext(Dispatchers.IO) { executor.trustKey(fingerprint, trustLevel) }
 
-    suspend fun exportKey(fingerprint: String): GpgOperationResult = withContext(Dispatchers.IO) {
-        try { executor.exportKey(fingerprint) } catch (e: Exception) { throw e }
-    }
+    suspend fun deleteKey(fingerprint: String): GpgOperationResult =
+        withContext(Dispatchers.IO) { executor.deleteKey(fingerprint) }
 
+    suspend fun exportKey(fingerprint: String, armor: Boolean = true, secret: Boolean = false): GpgOperationResult =
+        withContext(Dispatchers.IO) { executor.exportKey(fingerprint, armor, secret) }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
     private fun uriToTempFile(uri: Uri, context: Context, prefix: String): File {
-        val tempFile = File.createTempFile(prefix, ".tmp", cacheDir)
-        context.contentResolver.openInputStream(uri)?.use { input ->
-            tempFile.outputStream().use { output -> input.copyTo(output) }
-        }
-        return tempFile
+        val temp = File.createTempFile(prefix, ".tmp", cacheDir)
+        context.contentResolver.openInputStream(uri)?.use { it.copyTo(temp.outputStream()) }
+        return temp
     }
 }
