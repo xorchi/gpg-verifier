@@ -60,6 +60,37 @@ jobs:
           org.gradle.daemon=false
           EOF
 
+
+      # ── Download GPG static binary untuk armeabi-v7a ────────────────────────
+      - name: Download GPG static binary (armeabi-v7a)
+        run: |
+          mkdir -p app/src/main/jniLibs/armeabi-v7a
+
+          # Cari versi terbaru gnupg2 dari Termux
+          PKG_URL=$(curl -s "https://packages.termux.dev/apt/termux-main/dists/stable/main/binary-arm/Packages" \
+            | grep -A5 "^Package: gnupg$" \
+            | grep "^Filename:" \
+            | head -1 \
+            | awk '{print $2}')
+
+          echo "Package path: $PKG_URL"
+          curl -L "https://packages.termux.dev/apt/termux-main/$PKG_URL" -o /tmp/gnupg.deb
+
+          # Ekstrak binary gpg dari .deb
+          cd /tmp && ar x gnupg.deb
+          tar -xf data.tar.* --wildcards "*/bin/gpg" -C /tmp/ 2>/dev/null || \
+          tar -xf data.tar.* --wildcards "*/gpg" -C /tmp/ 2>/dev/null
+
+          # Cari dan salin binary
+          GPG_BIN=$(find /tmp -name "gpg" -type f | head -1)
+          echo "GPG binary found: $GPG_BIN"
+          cp "$GPG_BIN" app/src/main/jniLibs/armeabi-v7a/libgpg.so
+          chmod +x app/src/main/jniLibs/armeabi-v7a/libgpg.so
+
+          # Verifikasi
+          file app/src/main/jniLibs/armeabi-v7a/libgpg.so
+          ls -lh app/src/main/jniLibs/armeabi-v7a/libgpg.so
+
       # ── Build Release APK ────────────────────────────────────────────────────
       - name: Build Release APK
         env:
