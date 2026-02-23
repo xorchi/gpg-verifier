@@ -11,9 +11,15 @@ import java.io.File
 class GpgExecutor(private val context: Context) {
 
     private val gpgBinary: File by lazy {
-        val file = File(context.applicationInfo.nativeLibraryDir, "libgpg.so")
-        AppLogger.log("DEBUG: GPG path: ${file.absolutePath}, exists: ${file.exists()}, executable: ${file.canExecute()}")
-        file
+        val dest = File(context.filesDir, "gpg")
+        if (!dest.exists() || dest.length() == 0L) {
+            context.assets.open("gpg").use { input ->
+                dest.outputStream().use { output -> input.copyTo(output) }
+            }
+        }
+        dest.setExecutable(true, true)
+        AppLogger.log("DEBUG: GPG path: ${dest.absolutePath}, exists: ${dest.exists()}, executable: ${dest.canExecute()}")
+        dest
     }
 
     private val gpgDir: File by lazy {
@@ -216,5 +222,4 @@ class GpgExecutor(private val context: Context) {
             err
         }
     }
-
 }
