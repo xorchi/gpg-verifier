@@ -459,6 +459,9 @@ class GpgExecutor(private val context: Context) {
             GpgOperationResult.Success("Key generated: $uid")
         } catch (e: Exception) {
             AppLogger.log("ERROR generateKey: ${e.message}")
+            AppLogger.log("ERROR generateKey cause: ${e.cause?.message}")
+            AppLogger.log("ERROR generateKey class: ${e.javaClass.name}")
+            AppLogger.log("ERROR generateKey stack: ${e.stackTrace.take(5).joinToString(" | ") { "${it.className}.${it.methodName}:${it.lineNumber}" }}")
             GpgOperationResult.Failure(e.message ?: "Key generation gagal")
         }
     }
