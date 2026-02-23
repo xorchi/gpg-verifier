@@ -347,10 +347,15 @@ class GpgExecutor(private val context: Context) {
     fun importKeyFromKeyserver(keyId: String, keyserver: String): GpgOperationResult {
         AppLogger.log("DEBUG: importKeyFromKeyserver() keyId=$keyId ks=$keyserver")
         return try {
-            val base = keyserver.trimEnd('/')
-            val url  = "$base/pks/lookup?op=get&search=0x$keyId&options=mr"
+            val base = keyserver.trimEnd('/').replace("hkps://", "https://").replace("hkp://", "http://")
+            val search = if (keyId.contains("@")) keyId else "0x$keyId"
+            val url  = "$base/pks/lookup?op=get&search=$search&options=mr"
             AppLogger.log("DEBUG: Fetching $url")
-            val count = tryImportPublicKeys(URL(url).openStream())
+            val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+            conn.connectTimeout = 10000
+            conn.readTimeout = 15000
+            conn.setRequestProperty("User-Agent", "GPGVerifier/1.0")
+            val count = tryImportPublicKeys(conn.inputStream)
             GpgOperationResult.Success("$count key diimport dari $keyserver")
         } catch (e: Exception) {
             AppLogger.log("ERROR importKeyFromKeyserver: ${e.message}")

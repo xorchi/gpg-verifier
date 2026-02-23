@@ -9,6 +9,8 @@ import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import org.bouncycastle.jce.provider.BouncyCastleProvider
+import java.security.Security
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
@@ -51,6 +53,7 @@ val navItems = listOf(
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (Security.getProvider("BC") == null) Security.addProvider(BouncyCastleProvider())
         AppLogger.log("INFO: App started - onCreate()")
         checkAndRequestPermissions()
         enableEdgeToEdge()
