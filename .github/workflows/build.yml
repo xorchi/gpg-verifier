@@ -38,17 +38,6 @@ jobs:
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/libs.versions.toml') }}
           restore-keys: ${{ runner.os }}-gradle-
 
-      # ── Download GPG binary untuk armeabi-v7a ────────────────────────────────
-      - name: Download GPG binary (armeabi-v7a)
-        run: |
-          chmod +x scripts/prepare_gpg_binary.sh
-          ./scripts/prepare_gpg_binary.sh
-
-      # ── Verify GPG binary ada ────────────────────────────────────────────────
-      - name: Verify GPG binary
-        run: |
-          ls -la app/src/main/jniLibs/armeabi-v7a/
-          file app/src/main/jniLibs/armeabi-v7a/libgpg.so
 
       # ── Buat keystore dari secret ────────────────────────────────────────────
       - name: Decode keystore
