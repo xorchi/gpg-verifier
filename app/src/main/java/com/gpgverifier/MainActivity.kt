@@ -62,18 +62,18 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // FIXED: Signature sesuai dengan kebutuhan compiler Kotlin Android
+    // FIXED: Menggunakan Array<String> tanpa 'out' agar sesuai dengan Android SDK
     override fun onRequestPermissionsResult(
         requestCode: Int,
-        permissions: Array<out String>,
+        permissions: Array<String>,
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 100) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                AppLogger.log("INFO: User mengizinkan storage.")
+                AppLogger.log("INFO: Permission granted.")
             } else {
-                AppLogger.log("WARN: User menolak storage.")
+                AppLogger.log("WARN: Permission denied.")
             }
         }
     }
@@ -83,10 +83,16 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainScaffold() {
     var selectedTab by remember { mutableStateOf(0) }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
-            TopAppBar(title = { Text("GPG Verifier") })
+            TopAppBar(
+                title = { Text("GPG Verifier") },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            )
         },
         bottomBar = {
             NavigationBar {
@@ -94,7 +100,12 @@ fun MainScaffold() {
                     NavigationBarItem(
                         selected = selectedTab == index,
                         onClick = { selectedTab = index },
-                        icon = { Icon(if (selectedTab == index) item.selectedIcon else item.unselectedIcon, contentDescription = item.label) },
+                        icon = {
+                            Icon(
+                                if (selectedTab == index) item.selectedIcon else item.unselectedIcon,
+                                contentDescription = item.label
+                            )
+                        },
                         label = { Text(item.label) }
                     )
                 }

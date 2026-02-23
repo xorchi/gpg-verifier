@@ -12,25 +12,29 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 class KeyringRepository(context: Context) {
+
     private val executor = GpgExecutor(context)
     private val cacheDir = context.cacheDir
 
-    suspend fun verify(dataUri: Uri, sigUri: Uri, context: Context): VerificationResult = withContext(Dispatchers.IO) {
-        AppLogger.log("INFO: Memulai verifikasi")
-        try {
-            val dataFile = uriToTempFile(dataUri, context, "data")
-            val sigFile = uriToTempFile(sigUri, context, "sig")
+    suspend fun verify(dataUri: Uri, sigUri: Uri, context: Context): VerificationResult =
+        withContext(Dispatchers.IO) {
+            AppLogger.log("INFO: Memulai verifikasi...")
             try {
-                executor.verify(dataFile, sigFile)
-            } finally {
-                dataFile.delete()
-                sigFile.delete()
+                val dataFile = uriToTempFile(dataUri, context, "data_file")
+                val sigFile = uriToTempFile(sigUri, context, "sig_file")
+                try {
+                    val result = executor.verify(dataFile, sigFile)
+                    AppLogger.log("INFO: Verifikasi selesai.")
+                    result
+                } finally {
+                    dataFile.delete()
+                    sigFile.delete()
+                }
+            } catch (e: Exception) {
+                AppLogger.log("CRASH verify: ${e.stackTraceToString()}")
+                throw e
             }
-        } catch (e: Exception) {
-            AppLogger.log("CRASH verify: ${e.stackTraceToString()}")
-            throw e
         }
-    }
 
     suspend fun listPublicKeys(): List<GpgKey> = withContext(Dispatchers.IO) {
         try {
@@ -41,29 +45,79 @@ class KeyringRepository(context: Context) {
         }
     }
 
-    suspend fun importKeyFromFile(uri: Uri, context: Context): GpgOperationResult = withContext(Dispatchers.IO) {
+    suspend fun listSecretKeys(): List<GpgKey> = withContext(Dispatchers.IO) {
         try {
-            val file = uriToTempFile(uri, context, "import")
-            try {
-                executor.importKey(file)
-            } finally {
-                file.delete()
-            }
+            executor.listSecretKeys()
         } catch (e: Exception) {
-            AppLogger.log("CRASH importKey: ${e.stackTraceToString()}")
-            throw e
+            AppLogger.log("CRASH listSecretKeys: ${e.message}")
+            emptyList()
         }
     }
 
-    private fun uriToTempFile(uri: Uri, context: Context, prefix: String): File {
-        val file = File.createTempFile(prefix, null, cacheDir)
-        context.contentResolver.openInputStream(uri)?.use { input ->
-            file.outputStream().use { output -> input.copyTo(output) }
+    suspend fun importKeyFromFile(uri: Uri, context: Context): GpgOperationResult =
+        withContext(Dispatchers.IO) {
+            try {
+                val keyFile = uriToTempFile(uri, context, "import_key")
+                try {
+                    executor.importKey(keyFile)
+                } finally {
+                    keyFile.delete()
+                }
+            } catch (e: Exception) {
+                AppLogger.log("CRASH importKeyFromFile: ${e.stackTraceToString()}")
+                throw e
+            }
         }
-        return file
+
+    // FIXED: Ditambahkan kembali karena dibutuhkan oleh KeyringScreen
+    suspend fun importKeyFromKeyserver(keyId: String, keyserver: String): GpgOperationResult =
+        withContext(Dispatchers.IO) {
+            try {
+                executor.importKeyFromKeyserver(keyId, keyserver)
+            } catch (e: Exception) {
+                AppLogger.log("CRASH importKeyFromKeyserver: ${e.message}")
+                throw e
+            }
+        }
+
+    // FIXED: Ditambahkan kembali karena dibutuhkan oleh KeyringScreen
+    suspend fun trustKey(fingerprint: String, trustLevel: Int): GpgOperationResult =
+        withContext(Dispatchers.IO) {
+            try {
+                executor.trustKey(fingerprint, trustLevel)
+            } catch (e: Exception) {
+                AppLogger.log("CRASH trustKey: ${e.message}")
+                throw e
+            }
+        }
+
+    suspend fun deleteKey(fingerprint: String): GpgOperationResult =
+        withContext(Dispatchers.IO) {
+            try {
+                executor.deleteKey(fingerprint)
+            } catch (e: Exception) {
+                AppLogger.log("CRASH deleteKey: ${e.message}")
+                throw e
+            }
+        }
+
+    suspend fun exportKey(fingerprint: String): GpgOperationResult =
+        withContext(Dispatchers.IO) {
+            try {
+                executor.exportKey(fingerprint)
+            } catch (e: Exception) {
+                AppLogger.log("CRASH exportKey: ${e.message}")
+                throw e
+            }
+        }
+
+    private fun uriToTempFile(uri: Uri, context: Context, prefix: String): File {
+        val tempFile = File.createTempFile(prefix, ".tmp", cacheDir)
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            tempFile.outputStream().use { output ->
+                input.copyTo(output)
+            }
+        }
+        return tempFile
     }
-    
-    // Tambahkan stub untuk fungsi lain yang lu butuhkan (delete, trust, dll) agar tidak error compile
-    suspend fun deleteKey(fp: String): GpgOperationResult = executor.deleteKey(fp)
-    suspend fun exportKey(fp: String): GpgOperationResult = executor.exportKey(fp)
 }
