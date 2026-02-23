@@ -248,36 +248,64 @@ class GpgExecutor(private val context: Context) {
     fun generateKey(params: KeyGenParams): GpgOperationResult {
         AppLogger.log("DEBUG: generateKey() name=${params.name} email=${params.email}")
         return try {
-            val kpg = JcaPGPKeyPair(
-                PGPPublicKey.RSA_GENERAL,
-                java.security.KeyPairGenerator.getInstance("RSA").apply {
+            val now = Date()
+            val digestCalcProvider = JcaPGPDigestCalculatorProviderBuilder().setProvider("BC").build()
+            val sha1Calc = digestCalcProvider.get(HashAlgorithmTags.SHA1)
+
+            // Primary key: RSA untuk signing dan certify
+            val primaryKpg = JcaPGPKeyPair(
+                PGPPublicKey.RSA_SIGN,
+                java.security.KeyPairGenerator.getInstance("RSA", "BC").apply {
                     initialize(params.keySize, SecureRandom())
                 }.generateKeyPair(),
-                Date()
+                now
             )
+
+            // Subkey: RSA terpisah untuk enkripsi
+            val encryptKpg = JcaPGPKeyPair(
+                PGPPublicKey.RSA_ENCRYPT,
+                java.security.KeyPairGenerator.getInstance("RSA", "BC").apply {
+                    initialize(params.keySize, SecureRandom())
+                }.generateKeyPair(),
+                now
+            )
+
             val uid = buildString {
                 append(params.name)
                 if (params.comment.isNotBlank()) append(" (${params.comment})")
                 append(" <${params.email}>")
             }
-            val subGen = PGPSignatureSubpacketGenerator().apply {
-                setKeyFlags(false,
-                    KeyFlags.CERTIFY_OTHER or KeyFlags.SIGN_DATA or
-                    KeyFlags.ENCRYPT_COMMS or KeyFlags.ENCRYPT_STORAGE)
+
+            val encryptor = JcePBESecretKeyEncryptorBuilder(SymmetricKeyAlgorithmTags.AES_256)
+                .setProvider("BC").build(params.passphrase.toCharArray())
+
+            // Subpacket untuk primary key
+            val primarySubGen = PGPSignatureSubpacketGenerator().apply {
+                setKeyFlags(false, KeyFlags.CERTIFY_OTHER or KeyFlags.SIGN_DATA)
                 setPreferredSymmetricAlgorithms(false, intArrayOf(
                     SymmetricKeyAlgorithmTags.AES_256, SymmetricKeyAlgorithmTags.AES_128))
                 setPreferredHashAlgorithms(false, intArrayOf(
-                    HashAlgorithmTags.SHA256, HashAlgorithmTags.SHA1))
+                    HashAlgorithmTags.SHA256, HashAlgorithmTags.SHA384, HashAlgorithmTags.SHA512))
                 if (params.expiry > 0) setKeyExpirationTime(false, params.expiry * 86400L)
             }
+
+            // Subpacket untuk encryption subkey
+            val encSubGen = PGPSignatureSubpacketGenerator().apply {
+                setKeyFlags(false, KeyFlags.ENCRYPT_COMMS or KeyFlags.ENCRYPT_STORAGE)
+                if (params.expiry > 0) setKeyExpirationTime(false, params.expiry * 86400L)
+            }
+
             val gen = PGPKeyRingGenerator(
-                PGPSignature.POSITIVE_CERTIFICATION, kpg, uid,
-                JcaPGPDigestCalculatorProviderBuilder().build().get(HashAlgorithmTags.SHA1),
-                subGen.generate(), null,
-                JcaPGPContentSignerBuilder(kpg.publicKey.algorithm, HashAlgorithmTags.SHA256),
-                JcePBESecretKeyEncryptorBuilder(SymmetricKeyAlgorithmTags.AES_256)
-                    .setProvider("BC").build(params.passphrase.toCharArray())
-            )
+                PGPSignature.POSITIVE_CERTIFICATION, primaryKpg, uid,
+                sha1Calc,
+                primarySubGen.generate(), null,
+                JcaPGPContentSignerBuilder(primaryKpg.publicKey.algorithm, HashAlgorithmTags.SHA256).setProvider("BC"),
+                encryptor
+            ).apply {
+                addSubKey(encryptKpg, encSubGen.generate(), null,
+                    JcaPGPContentSignerBuilder(primaryKpg.publicKey.algorithm, HashAlgorithmTags.SHA256).setProvider("BC"))
+            }
+
             val pubs = loadPublicKeyring()?.toMutableList() ?: mutableListOf()
             pubs.add(gen.generatePublicKeyRing())
             savePublicKeyring(pubs)
