@@ -9,11 +9,10 @@
 .cxx
 local.properties
 
-# Keystore - JANGAN commit file ini!
-*.jks
+# Keystore
+.jks
 *.keystore
 
-# Assets binary - commit GPG binary via git lfs atau langsung
 # app/src/main/assets/gpg
 
 # Signing keys - NEVER commit these
