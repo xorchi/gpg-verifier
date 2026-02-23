@@ -25,7 +25,7 @@ class GpgExecutor(private val context: Context) {
     private val secretKeyringFile: File get() = File(keyringDir, "secring.pgp")
     private val trustFile: File       get() = File(keyringDir, "trustdb.txt")
 
-    // ── Verify ───────────────────────────────────────────────────────────────
+    // ── Verify (detached signature) ───────────────────────────────────────────
 
     fun verify(dataFile: File, sigFile: File): VerificationResult {
         AppLogger.log("DEBUG: verify() dipanggil")
@@ -57,6 +57,67 @@ class GpgExecutor(private val context: Context) {
         } catch (e: Exception) {
             AppLogger.log("ERROR verify: ${e.message}")
             VerificationResult(false, "", "", "", "", e.message ?: "Verifikasi gagal")
+        }
+    }
+
+    // ── Verify ClearSign (single .asc file) ──────────────────────────────────
+
+    fun verifyClearSign(clearSignFile: File): VerificationResult {
+        AppLogger.log("DEBUG: verifyClearSign() dipanggil file=${clearSignFile.name}")
+        return try {
+            val pubRings = loadPublicKeyring()
+                ?: return VerificationResult(false, "", "", "", "", "Keyring kosong — import public key terlebih dahulu")
+
+            val content = clearSignFile.readText()
+
+            // Validasi format clearsign
+            if (!content.contains("-----BEGIN PGP SIGNED MESSAGE-----"))
+                return VerificationResult(false, "", "", "", "", "File bukan format clearsign GPG yang valid")
+
+            // Parsing manual: ambil bagian teks dan signature
+            val sigStart = content.indexOf("-----BEGIN PGP SIGNATURE-----")
+            if (sigStart == -1)
+                return VerificationResult(false, "", "", "", "", "Blok signature tidak ditemukan dalam file")
+
+            // Ambil body teks (antara header + blank line dan -----BEGIN PGP SIGNATURE-----)
+            val headerEnd = content.indexOf("\n\n")
+            if (headerEnd == -1)
+                return VerificationResult(false, "", "", "", "", "Format clearsign tidak valid — header tidak ditemukan")
+
+            val signedText = content.substring(headerEnd + 2, sigStart).trimEnd('\n')
+            val sigBlock   = content.substring(sigStart)
+
+            // Parse signature block
+            val sigBytes  = sigBlock.toByteArray(Charsets.UTF_8)
+            val sigs      = loadSignatures(sigBytes.inputStream())
+            if (sigs.isEmpty())
+                return VerificationResult(false, "", "", "", "", "Tidak ada signature yang dapat diparse")
+
+            // Clearsign menggunakan canonical line ending (\r\n) untuk verifikasi
+            val canonicalText = signedText.lines().joinToString("\r\n")
+
+            for (sig in sigs) {
+                val pubKey = findPublicKey(pubRings, sig.keyID) ?: continue
+                sig.init(JcaPGPContentVerifierBuilderProvider(), pubKey)
+                sig.update(canonicalText.toByteArray(Charsets.UTF_8))
+                val valid = sig.verify()
+                val fp  = bytesToHex(pubKey.fingerprint)
+                val uid = (pubKey.userIDs.asSequence().firstOrNull() ?: "Unknown") as String
+                val ts  = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(sig.creationTime)
+                return VerificationResult(
+                    isValid      = valid,
+                    signedBy     = uid,
+                    fingerprint  = fp,
+                    timestamp    = ts,
+                    trustLevel   = getTrustLevel(fp),
+                    rawOutput    = if (valid) "Good signature from \"$uid\"" else "BAD signature",
+                    errorMessage = if (!valid) "Signature tidak valid" else null
+                )
+            }
+            VerificationResult(false, "", "", "", "", "No public key — key ID tidak ditemukan di keyring")
+        } catch (e: Exception) {
+            AppLogger.log("ERROR verifyClearSign: ${e.message}")
+            VerificationResult(false, "", "", "", "", e.message ?: "Verifikasi clearsign gagal")
         }
     }
 
@@ -224,11 +285,9 @@ class GpgExecutor(private val context: Context) {
     fun decrypt(dataFile: File, passphrase: String): DecryptResult {
         AppLogger.log("DEBUG: decrypt() file=${dataFile.name}")
         return try {
-            // Baca seluruh konten ke buffer terlebih dahulu agar stream tidak terkonsumsi ganda
             val rawBytes = PGPUtil.getDecoderStream(dataFile.inputStream()).readBytes()
 
             val factory = PGPObjectFactory(rawBytes.inputStream(), JcaKeyFingerprintCalculator())
-            // Cari PGPEncryptedDataList — bisa langsung atau dibungkus objek lain
             var encData: PGPEncryptedDataList? = null
             var nextObj: Any? = factory.nextObject()
             while (nextObj != null && encData == null) {
@@ -238,7 +297,6 @@ class GpgExecutor(private val context: Context) {
             if (encData == null)
                 return DecryptResult(false, errorMessage = "File bukan data terenkripsi GPG")
 
-            // ── Coba dekripsi public-key ──────────────────────────────────────
             val secRings = loadSecretKeyring()
             var plainStream: InputStream? = null
 
@@ -262,7 +320,6 @@ class GpgExecutor(private val context: Context) {
                 }
             }
 
-            // ── Fallback: coba dekripsi simetris (PBE) ────────────────────────
             if (plainStream == null && passphrase.isNotEmpty()) {
                 for (enc in encData) {
                     if (enc !is PGPPBEEncryptedData) continue
@@ -287,7 +344,6 @@ class GpgExecutor(private val context: Context) {
                         "Tidak ada secret key yang cocok atau passphrase salah"
                 )
 
-            // ── Unwrap compressed + literal data ─────────────────────────────
             val litData = unwrapToLiteralData(plainStream)
                 ?: return DecryptResult(false, errorMessage = "Struktur data GPG tidak valid")
 
@@ -304,7 +360,6 @@ class GpgExecutor(private val context: Context) {
         }
     }
 
-    /** Menelusuri lapisan Compressed/OnePass/Signature hingga menemukan PGPLiteralData */
     private fun unwrapToLiteralData(stream: InputStream): PGPLiteralData? {
         val factory = PGPObjectFactory(stream, JcaKeyFingerprintCalculator())
         var obj = factory.nextObject()
@@ -313,7 +368,7 @@ class GpgExecutor(private val context: Context) {
                 is PGPLiteralData    -> return obj
                 is PGPCompressedData -> return unwrapToLiteralData(obj.dataStream)
                 is PGPOnePassSignatureList,
-                is PGPSignatureList  -> { /* lewati, lanjut ke objek berikutnya */ }
+                is PGPSignatureList  -> { /* lewati */ }
             }
             obj = factory.nextObject()
         }
@@ -329,7 +384,6 @@ class GpgExecutor(private val context: Context) {
             val digestCalcProvider = org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider()
             val sha1Calc = digestCalcProvider.get(HashAlgorithmTags.SHA1)
 
-            // Primary key: RSA untuk signing dan certify
             val primaryKpg = JcaPGPKeyPair(
                 PGPPublicKey.RSA_SIGN,
                 java.security.KeyPairGenerator.getInstance("RSA", "BC").apply {
@@ -338,7 +392,6 @@ class GpgExecutor(private val context: Context) {
                 now
             )
 
-            // Subkey: RSA terpisah untuk enkripsi
             val encryptKpg = JcaPGPKeyPair(
                 PGPPublicKey.RSA_ENCRYPT,
                 java.security.KeyPairGenerator.getInstance("RSA", "BC").apply {
@@ -355,7 +408,6 @@ class GpgExecutor(private val context: Context) {
 
             val encryptor = org.bouncycastle.openpgp.operator.bc.BcPBESecretKeyEncryptorBuilder(SymmetricKeyAlgorithmTags.AES_256, org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider().get(HashAlgorithmTags.SHA256)).build(params.passphrase.toCharArray())
 
-            // Subpacket untuk primary key
             val primarySubGen = PGPSignatureSubpacketGenerator().apply {
                 setKeyFlags(false, KeyFlags.CERTIFY_OTHER or KeyFlags.SIGN_DATA)
                 setPreferredSymmetricAlgorithms(false, intArrayOf(
@@ -365,7 +417,6 @@ class GpgExecutor(private val context: Context) {
                 if (params.expiry > 0) setKeyExpirationTime(false, params.expiry * 86400L)
             }
 
-            // Subpacket untuk encryption subkey
             val encSubGen = PGPSignatureSubpacketGenerator().apply {
                 setKeyFlags(false, KeyFlags.ENCRYPT_COMMS or KeyFlags.ENCRYPT_STORAGE)
                 if (params.expiry > 0) setKeyExpirationTime(false, params.expiry * 86400L)
@@ -404,14 +455,14 @@ class GpgExecutor(private val context: Context) {
             val pub = ring.publicKey
             val fp  = bytesToHex(pub.fingerprint)
             GpgKey(
-                keyId      = java.lang.Long.toHexString(pub.keyID).uppercase(),
+                keyId       = java.lang.Long.toHexString(pub.keyID).uppercase(),
                 fingerprint = fp,
-                uids       = pub.userIDs.asSequence().map { it as String }.toList(),
-                createdAt  = pub.creationTime.time.toString(),
-                expiresAt  = if (pub.validSeconds > 0)
+                uids        = pub.userIDs.asSequence().map { it as String }.toList(),
+                createdAt   = pub.creationTime.time.toString(),
+                expiresAt   = if (pub.validSeconds > 0)
                     (pub.creationTime.time + pub.validSeconds * 1000).toString() else null,
-                trustLevel = getTrustLevel(fp),
-                type       = KeyType.PUBLIC
+                trustLevel  = getTrustLevel(fp),
+                type        = KeyType.PUBLIC
             )
         } ?: emptyList()
     }
@@ -421,14 +472,14 @@ class GpgExecutor(private val context: Context) {
             val sec = ring.secretKey
             val fp  = bytesToHex(sec.publicKey.fingerprint)
             GpgKey(
-                keyId      = java.lang.Long.toHexString(sec.keyID).uppercase(),
+                keyId       = java.lang.Long.toHexString(sec.keyID).uppercase(),
                 fingerprint = fp,
-                uids       = sec.userIDs.asSequence().map { it as String }.toList(),
-                createdAt  = sec.publicKey.creationTime.time.toString(),
-                expiresAt  = if (sec.publicKey.validSeconds > 0)
+                uids        = sec.userIDs.asSequence().map { it as String }.toList(),
+                createdAt   = sec.publicKey.creationTime.time.toString(),
+                expiresAt   = if (sec.publicKey.validSeconds > 0)
                     (sec.publicKey.creationTime.time + sec.publicKey.validSeconds * 1000).toString() else null,
-                trustLevel = getTrustLevel(fp),
-                type       = KeyType.SECRET
+                trustLevel  = getTrustLevel(fp),
+                type        = KeyType.SECRET
             )
         } ?: emptyList()
     }
@@ -451,13 +502,13 @@ class GpgExecutor(private val context: Context) {
     fun importKeyFromKeyserver(keyId: String, keyserver: String): GpgOperationResult {
         AppLogger.log("DEBUG: importKeyFromKeyserver() keyId=$keyId ks=$keyserver")
         return try {
-            val base = keyserver.trimEnd('/').replace("hkps://", "https://").replace("hkp://", "http://")
+            val base   = keyserver.trimEnd('/').replace("hkps://", "https://").replace("hkp://", "http://")
             val search = if (keyId.contains("@")) keyId else "0x$keyId"
-            val url  = "$base/pks/lookup?op=get&search=$search&options=mr"
+            val url    = "$base/pks/lookup?op=get&search=$search&options=mr"
             AppLogger.log("DEBUG: Fetching $url")
             val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
             conn.connectTimeout = 10000
-            conn.readTimeout = 15000
+            conn.readTimeout    = 15000
             conn.setRequestProperty("User-Agent", "GPGVerifier/1.0")
             val responseCode = conn.responseCode
             if (responseCode != 200)

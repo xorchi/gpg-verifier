@@ -30,47 +30,99 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun VerifyScreen(modifier: Modifier = Modifier) {
-    val context    = LocalContext.current
-    val repo       = remember { KeyringRepository(context) }
-    val scope      = rememberCoroutineScope()
+    val context     = LocalContext.current
+    val repo        = remember { KeyringRepository(context) }
+    val scope       = rememberCoroutineScope()
     val scrollState = rememberScrollState()
+
+    // Mode: false = detached signature, true = clearsign
+    var isClearSignMode by remember { mutableStateOf(false) }
 
     var dataUri       by remember { mutableStateOf<Uri?>(null) }
     var sigUri        by remember { mutableStateOf<Uri?>(null) }
+    var clearSignUri  by remember { mutableStateOf<Uri?>(null) }
     var result        by remember { mutableStateOf<VerificationResult?>(null) }
     var isLoading     by remember { mutableStateOf(false) }
     var showRawOutput by remember { mutableStateOf(false) }
 
-    val dataFilePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { dataUri = it }
-    val sigFilePicker  = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { sigUri = it }
+    val dataFilePicker      = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { dataUri = it }
+    val sigFilePicker       = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { sigUri = it }
+    val clearSignFilePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { clearSignUri = it }
 
     Column(
         modifier = modifier.fillMaxSize().verticalScroll(scrollState).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text("Select Files", style = MaterialTheme.typography.titleMedium,
+        Text("Verify Signature", style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface)
 
-        FilePickerCard("File to Verify", dataUri, Icons.Default.InsertDriveFile) {
-            dataFilePicker.launch("*/*")
-        }
-        FilePickerCard("Signature File (.sig / .asc)", sigUri, Icons.Default.VerifiedUser) {
-            sigFilePicker.launch("*/*")
+        // ── Toggle Mode ──────────────────────────────────────────────────────
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text(
+                        if (isClearSignMode) "Mode: ClearSign" else "Mode: Detached Signature",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        if (isClearSignMode) "Satu file .asc berisi teks + signature"
+                        else "File data + file signature terpisah",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+                Switch(
+                    checked = isClearSignMode,
+                    onCheckedChange = {
+                        isClearSignMode = it
+                        result = null
+                        dataUri = null
+                        sigUri = null
+                        clearSignUri = null
+                    }
+                )
+            }
         }
 
+        // ── File Picker berdasarkan mode ─────────────────────────────────────
+        if (isClearSignMode) {
+            FilePickerCard("ClearSign File (.asc)", clearSignUri, Icons.Default.VerifiedUser) {
+                clearSignFilePicker.launch("*/*")
+            }
+        } else {
+            FilePickerCard("File to Verify", dataUri, Icons.Default.InsertDriveFile) {
+                dataFilePicker.launch("*/*")
+            }
+            FilePickerCard("Signature File (.sig / .asc)", sigUri, Icons.Default.VerifiedUser) {
+                sigFilePicker.launch("*/*")
+            }
+        }
+
+        // ── Tombol Verify ────────────────────────────────────────────────────
         Button(
             onClick = {
-                val d = dataUri ?: return@Button
-                val s = sigUri  ?: return@Button
                 scope.launch {
                     isLoading = true; result = null
-                    result    = repo.verify(d, s, context)
+                    result = if (isClearSignMode) {
+                        val cs = clearSignUri ?: return@launch
+                        repo.verifyClearSign(cs, context)
+                    } else {
+                        val d = dataUri ?: return@launch
+                        val s = sigUri  ?: return@launch
+                        repo.verify(d, s, context)
+                    }
                     isLoading = false
                 }
             },
-            enabled  = dataUri != null && sigUri != null && !isLoading,
+            enabled = if (isClearSignMode) clearSignUri != null && !isLoading
+                      else dataUri != null && sigUri != null && !isLoading,
             modifier = Modifier.fillMaxWidth(),
-            colors   = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
         ) {
             if (isLoading) {
                 CircularProgressIndicator(modifier = Modifier.size(20.dp),
@@ -89,67 +141,107 @@ fun VerifyScreen(modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun FilePickerCard(label: String, uri: Uri?, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
-    OutlinedCard(onClick = onClick, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp),
-        border = CardDefaults.outlinedCardBorder().copy(width = if (uri != null) 1.5.dp else 1.dp)) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Icon(icon, null, tint = if (uri != null) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+fun FilePickerCard(
+    label: String,
+    uri: Uri?,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit
+) {
+    OutlinedCard(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        border = CardDefaults.outlinedCardBorder().copy(width = if (uri != null) 1.5.dp else 1.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Icon(icon, null,
+                tint = if (uri != null) MaterialTheme.colorScheme.primary
+                       else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
             Column(modifier = Modifier.weight(1f)) {
                 Text(label, style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-                Text(uri?.lastPathSegment ?: "Tap to select",
+                Text(
+                    uri?.lastPathSegment ?: "Tap to select",
                     style = MaterialTheme.typography.bodyMedium,
                     color = if (uri != null) MaterialTheme.colorScheme.onSurface
-                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
+                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                )
             }
-            if (uri != null) Icon(Icons.Default.CheckCircle, null, tint = MaterialTheme.colorScheme.primary)
+            if (uri != null) Icon(Icons.Default.CheckCircle, null,
+                tint = MaterialTheme.colorScheme.primary)
         }
     }
 }
 
 @Composable
-fun VerificationResultCard(result: VerificationResult, showRawOutput: Boolean, onToggleRaw: () -> Unit) {
-    val validColor   = Color(0xFF4CAF50)
-    val invalidColor = Color(0xFFEF5350)
-    val accentColor  = if (result.isValid) validColor else invalidColor
+fun VerificationResultCard(
+    result: VerificationResult,
+    showRawOutput: Boolean,
+    onToggleRaw: () -> Unit
+) {
+    val isValid = result.isValid
+    val containerColor = if (isValid)
+        MaterialTheme.colorScheme.primaryContainer
+    else
+        MaterialTheme.colorScheme.errorContainer
 
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = accentColor.copy(alpha = 0.08f))) {
-        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Icon(if (result.isValid) Icons.Default.CheckCircle else Icons.Default.Cancel,
-                    null, tint = accentColor, modifier = Modifier.size(32.dp))
-                Column {
-                    Text(if (result.isValid) "VALID SIGNATURE" else "INVALID SIGNATURE",
-                        fontWeight = FontWeight.Bold, fontSize = 18.sp, color = accentColor)
-                    if (!result.isValid && result.errorMessage != null)
-                        Text(result.errorMessage, style = MaterialTheme.typography.bodySmall,
-                            color = invalidColor.copy(alpha = 0.8f))
-                }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = containerColor)
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    if (isValid) Icons.Default.CheckCircle else Icons.Default.Cancel,
+                    contentDescription = null,
+                    tint = if (isValid) MaterialTheme.colorScheme.primary
+                           else MaterialTheme.colorScheme.error
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    if (isValid) "Signature Valid" else "Signature Tidak Valid",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isValid) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.error
+                )
             }
-            HorizontalDivider(color = accentColor.copy(alpha = 0.2f))
-            if (result.isValid) {
-                ResultField("Signed by",   result.signedBy, Icons.Default.Person)
-                ResultField("Fingerprint", result.fingerprint.chunked(4).joinToString(" "), Icons.Default.Fingerprint)
-                if (result.timestamp.isNotBlank())
-                    ResultField("Signed at", result.timestamp, Icons.Default.Schedule)
-                ResultField("Trust Level", result.trustLevel, Icons.Default.Shield)
+
+            if (result.errorMessage != null) {
+                Text(result.errorMessage, style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error)
             }
-            TextButton(onClick = onToggleRaw,
-                colors = ButtonDefaults.textButtonColors(contentColor = accentColor)) {
-                Icon(if (showRawOutput) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null)
-                Spacer(Modifier.width(4.dp))
-                Text(if (showRawOutput) "Hide Raw Output" else "Show Raw Output")
+
+            if (result.signedBy.isNotBlank()) {
+                Divider(modifier = Modifier.padding(vertical = 4.dp))
+                InfoRow("Signed by", result.signedBy)
+                InfoRow("Fingerprint", result.fingerprint.chunked(4).joinToString(" "))
+                InfoRow("Timestamp", result.timestamp)
+                InfoRow("Trust Level", result.trustLevel)
             }
+
+            TextButton(onClick = onToggleRaw) {
+                Text(if (showRawOutput) "Sembunyikan Raw Output" else "Tampilkan Raw Output")
+            }
+
             if (showRawOutput) {
-                Box(modifier = Modifier.fillMaxWidth()
-                    .background(Color(0xFF111111), RoundedCornerShape(8.dp))
-                    .border(1.dp, Color(0xFF333333), RoundedCornerShape(8.dp))
-                    .padding(12.dp)) {
-                    Text(result.rawOutput, fontFamily = FontFamily.Monospace, fontSize = 11.sp,
-                        color = Color(0xFF80FF80), lineHeight = 16.sp)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(8.dp))
+                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
+                        .padding(12.dp)
+                ) {
+                    Text(
+                        result.rawOutput,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                 }
             }
         }
@@ -157,16 +249,10 @@ fun VerificationResultCard(result: VerificationResult, showRawOutput: Boolean, o
 }
 
 @Composable
-fun ResultField(label: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Icon(icon, null, modifier = Modifier.size(16.dp).padding(top = 2.dp),
-            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
-        Column {
-            Text(label, style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
-            Text(value, style = MaterialTheme.typography.bodyMedium,
-                fontFamily = if (label == "Fingerprint") FontFamily.Monospace else FontFamily.Default,
-                color = MaterialTheme.colorScheme.onSurface)
-        }
+private fun InfoRow(label: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+        Text(value, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
     }
 }

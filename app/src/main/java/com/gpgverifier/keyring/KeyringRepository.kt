@@ -10,10 +10,10 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 class KeyringRepository(context: Context) {
-    private val executor  = GpgExecutor(context)
-    private val cacheDir  = context.cacheDir
+    private val executor = GpgExecutor(context)
+    private val cacheDir = context.cacheDir
 
-    // ── Verify ───────────────────────────────────────────────────────────────
+    // ── Verify (detached) ────────────────────────────────────────────────────
     suspend fun verify(dataUri: Uri, sigUri: Uri, context: Context): VerificationResult =
         withContext(Dispatchers.IO) {
             AppLogger.log("DEBUG: verify dipanggil")
@@ -26,6 +26,18 @@ class KeyringRepository(context: Context) {
             } finally { dataFile.delete(); sigFile.delete() }
         }
 
+    // ── Verify ClearSign (single file) ───────────────────────────────────────
+    suspend fun verifyClearSign(clearSignUri: Uri, context: Context): VerificationResult =
+        withContext(Dispatchers.IO) {
+            AppLogger.log("DEBUG: verifyClearSign dipanggil")
+            val clearSignFile = uriToTempFile(clearSignUri, context, "clearsign_file")
+            try {
+                executor.verifyClearSign(clearSignFile).also {
+                    AppLogger.log("INFO: ClearSign verifikasi ${if (it.isValid) "sukses" else "gagal"}")
+                }
+            } finally { clearSignFile.delete() }
+        }
+
     // ── Sign ─────────────────────────────────────────────────────────────────
     suspend fun sign(
         dataUri: Uri, context: Context,
@@ -36,13 +48,23 @@ class KeyringRepository(context: Context) {
         finally { dataFile.delete() }
     }
 
-    // ── Encrypt ──────────────────────────────────────────────────────────────
+    // ── Encrypt (asymmetric) ──────────────────────────────────────────────────
     suspend fun encrypt(
         dataUri: Uri, context: Context,
         recipientFingerprints: List<String>, armor: Boolean
     ): EncryptResult = withContext(Dispatchers.IO) {
         val dataFile = uriToTempFile(dataUri, context, "enc_input")
         try { executor.encrypt(dataFile, recipientFingerprints, armor) }
+        finally { dataFile.delete() }
+    }
+
+    // ── Encrypt (symmetric) ───────────────────────────────────────────────────
+    suspend fun encryptSymmetric(
+        dataUri: Uri, context: Context,
+        passphrase: String, armor: Boolean
+    ): EncryptResult = withContext(Dispatchers.IO) {
+        val dataFile = uriToTempFile(dataUri, context, "enc_sym_input")
+        try { executor.encryptSymmetric(dataFile, passphrase, armor) }
         finally { dataFile.delete() }
     }
 
