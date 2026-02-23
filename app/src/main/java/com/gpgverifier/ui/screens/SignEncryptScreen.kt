@@ -49,6 +49,7 @@ fun SignEncryptScreen(modifier: Modifier = Modifier) {
 
 // ── Sign Tab ─────────────────────────────────────────────────────────────────
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SignTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope, scroll: androidx.compose.foundation.ScrollState) {
     val context = LocalContext.current
@@ -167,6 +168,7 @@ fun SignTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope, s
 
 // ── Encrypt Tab ───────────────────────────────────────────────────────────────
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EncryptTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope, scroll: androidx.compose.foundation.ScrollState) {
     val context = LocalContext.current
