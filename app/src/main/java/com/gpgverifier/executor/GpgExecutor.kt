@@ -28,34 +28,25 @@ class GpgExecutor(private val context: Context) {
     }
 
     fun verify(dataFile: File, sigFile: File): VerificationResult {
-        val output = runGpg("--verify", sigFile.absolutePath, dataFile.absolutePath)
-        AppLogger.log("DEBUG: GPG Output: ${output.message}")
-        return VerificationResult(
-            isValid = output.exitCode == 0,
-            details = output.message,
-            signer = "Unknown" 
-        )
+        AppLogger.log("DEBUG: Menjalankan verify...")
+        val output = runGpgRaw("--verify", sigFile.absolutePath, dataFile.absolutePath)
+        AppLogger.log("DEBUG: Raw Output: $output")
+        throw Exception("Cek log untuk hasil verifikasi: $output")
     }
 
     fun listKeys(): List<GpgKey> {
-        val output = runGpg("--list-keys", "--with-colons")
-        if (output.exitCode != 0) AppLogger.log("DEBUG: ListKeys error: ${output.message}")
-        // Parsing logic disederhanakan dulu buat debug
-        return emptyList() 
-    }
-
-    fun listSecretKeys(): List<GpgKey> {
-        runGpg("--list-secret-keys", "--with-colons")
+        AppLogger.log("DEBUG: Menjalankan list-keys...")
+        runGpgRaw("--list-keys", "--with-colons")
         return emptyList()
     }
 
-    fun importKey(keyFile: File): GpgOperationResult = runGpg("--import", keyFile.absolutePath)
-    fun importKeyFromKeyserver(keyId: String, keyserver: String): GpgOperationResult = runGpg("--keyserver", keyserver, "--recv-keys", keyId)
-    fun trustKey(fingerprint: String, trustLevel: Int): GpgOperationResult = runGpg("--import-ownertrust") // simplified
-    fun deleteKey(fingerprint: String): GpgOperationResult = runGpg("--delete-key", fingerprint)
-    fun exportKey(fingerprint: String): GpgOperationResult = runGpg("--export", "--armor", fingerprint)
+    fun listSecretKeys(): List<GpgKey> {
+        runGpgRaw("--list-secret-keys", "--with-colons")
+        return emptyList()
+    }
 
-    private fun runGpg(vararg args: String): GpgOperationResult {
+    // Fungsi pembantu biar gak pusing sama constructor model lu
+    private fun runGpgRaw(vararg args: String): String {
         return try {
             val command = mutableListOf(gpgBinary.absolutePath, "--homedir", gpgDir.absolutePath)
             command.addAll(args)
@@ -69,10 +60,19 @@ class GpgExecutor(private val context: Context) {
             val output = process.inputStream.bufferedReader().readText()
             val exitCode = process.waitFor()
             
-            GpgOperationResult(exitCode == 0, output, exitCode)
+            AppLogger.log("DEBUG: Exit Code: $exitCode, Output: $output")
+            output
         } catch (e: Exception) {
-            AppLogger.log("CRASH runGpg: ${e.message}")
-            GpgOperationResult(false, e.message ?: "Unknown error", -1)
+            val err = "CRASH runGpgRaw: ${e.message}"
+            AppLogger.log(err)
+            err
         }
     }
+
+    // Stub supaya tetap bisa build meskipun fungsinya kosong
+    fun importKey(keyFile: File): Any? = runGpgRaw("--import", keyFile.absolutePath)
+    fun importKeyFromKeyserver(kId: String, ks: String): Any? = null
+    fun trustKey(fp: String, tl: Int): Any? = null
+    fun deleteKey(fp: String): Any? = null
+    fun exportKey(fp: String): Any? = null
 }
