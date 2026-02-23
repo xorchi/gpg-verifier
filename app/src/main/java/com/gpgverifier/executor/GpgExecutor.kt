@@ -11,15 +11,8 @@ import java.io.File
 class GpgExecutor(private val context: Context) {
 
     private val gpgBinary: File by lazy {
-        val file = File(context.filesDir, "gpg")
-        if (!file.exists()) {
-            AppLogger.log("DEBUG: Copying binary from assets...")
-            context.assets.open("gpg").use { input ->
-                file.outputStream().use { output -> input.copyTo(output) }
-            }
-        }
-        file.setExecutable(true)
-        AppLogger.log("DEBUG: GPG path: ${file.absolutePath}, executable: ${file.canExecute()}")
+        val file = File(context.applicationInfo.nativeLibraryDir, "libgpg.so")
+        AppLogger.log("DEBUG: GPG path: ${file.absolutePath}, exists: ${file.exists()}, executable: ${file.canExecute()}")
         file
     }
 

@@ -5,8 +5,8 @@
 
 set -euo pipefail
 
-ASSETS_DIR="app/src/main/assets"
-GPG_DEST="$ASSETS_DIR/gpg"
+ASSETS_DIR="app/src/main/jniLibs/armeabi-v7a"
+GPG_DEST="$ASSETS_DIR/libgpg.so"
 ARCH="arm"
 
 mkdir -p "$ASSETS_DIR"
