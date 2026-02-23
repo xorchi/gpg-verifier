@@ -240,7 +240,7 @@ class GpgExecutor(private val context: Context) {
                     .setWithIntegrityPacket(true)
                     .setSecureRandom(SecureRandom())
                     .setProvider("BC")
-            ).apply { encKeys.forEach { addMethod(JcePublicKeyKeyEncryptionMethodGenerator(it).setProvider("BC")) } }
+            ).apply { encKeys.forEach { addMethod(org.bouncycastle.openpgp.operator.bc.BcPublicKeyKeyEncryptionMethodGenerator(it)) } }
 
             encGen.open(rawOut, ByteArray(1 shl 16)).use { encOut ->
                 PGPCompressedDataGenerator(PGPCompressedData.ZIP).open(encOut).use { cos ->
@@ -400,19 +400,16 @@ class GpgExecutor(private val context: Context) {
             val digestCalcProvider = org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider()
             val sha1Calc = digestCalcProvider.get(HashAlgorithmTags.SHA1)
 
+            val kpgRSA = java.security.KeyPairGenerator.getInstance("RSA")
             val primaryKpg = JcaPGPKeyPair(
                 PGPPublicKey.RSA_SIGN,
-                java.security.KeyPairGenerator.getInstance("RSA", "BC").apply {
-                    initialize(params.keySize, SecureRandom())
-                }.generateKeyPair(),
+                kpgRSA.apply { initialize(params.keySize, SecureRandom()) }.generateKeyPair(),
                 now
             )
 
             val encryptKpg = JcaPGPKeyPair(
                 PGPPublicKey.RSA_ENCRYPT,
-                java.security.KeyPairGenerator.getInstance("RSA", "BC").apply {
-                    initialize(params.keySize, SecureRandom())
-                }.generateKeyPair(),
+                kpgRSA.apply { initialize(params.keySize, SecureRandom()) }.generateKeyPair(),
                 now
             )
 
