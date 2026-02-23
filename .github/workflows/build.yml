@@ -52,9 +52,8 @@ jobs:
           org.gradle.daemon=false
           EOF
 
-      - name: Download GPG binary (armeabi-v7a) to assets
+      - name: Download GPG binary (armeabi-v7a)
         run: |
-          mkdir -p app/src/main/assets
 
           # Ambil daftar paket dari Termux repository (arm/armeabi-v7a)
           PACKAGES=$(curl -fsSL "https://packages.termux.dev/apt/termux-main/dists/stable/main/binary-arm/Packages")
@@ -95,11 +94,12 @@ jobs:
           fi
 
           echo "GPG binary: $GPG_BIN"
-          cp "$GPG_BIN" $GITHUB_WORKSPACE/app/src/main/assets/gpg
-          chmod +x $GITHUB_WORKSPACE/app/src/main/assets/gpg
+          mkdir -p $GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a
+          cp "$GPG_BIN" $GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a/libgpg.so
+          chmod +x $GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a/libgpg.so
 
-          file $GITHUB_WORKSPACE/app/src/main/assets/gpg
-          ls -lh $GITHUB_WORKSPACE/app/src/main/assets/gpg
+          file $GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a/libgpg.so
+          ls -lh $GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a/libgpg.so
 
       - name: Build Release APK
         env:

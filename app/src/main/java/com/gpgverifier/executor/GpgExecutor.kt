@@ -11,13 +11,7 @@ import java.io.File
 class GpgExecutor(private val context: Context) {
 
     private val gpgBinary: File by lazy {
-        val dest = File(context.filesDir, "gpg")
-        if (!dest.exists() || dest.length() == 0L) {
-            context.assets.open("gpg").use { input ->
-                dest.outputStream().use { output -> input.copyTo(output) }
-            }
-        }
-        dest.setExecutable(true, true)
+        val dest = File(context.applicationInfo.nativeLibraryDir, "libgpg.so")
         AppLogger.log("DEBUG: GPG path: ${dest.absolutePath}, exists: ${dest.exists()}, executable: ${dest.canExecute()}")
         dest
     }
