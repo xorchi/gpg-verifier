@@ -84,8 +84,8 @@ class GpgExecutor(private val context: Context) {
                 else -> PGPSignature.BINARY_DOCUMENT
             }
             val sigGen = PGPSignatureGenerator(
-                JcaPGPContentSignerBuilder(secKey.publicKey.algorithm, HashAlgorithmTags.SHA256)
-                    .setProvider("BC")
+                org.bouncycastle.openpgp.operator.bc.BcPGPContentSignerBuilder(
+                    secKey.publicKey.algorithm, HashAlgorithmTags.SHA256)
             ).apply {
                 init(sigType, privateKey)
                 val sub = PGPSignatureSubpacketGenerator()
@@ -178,6 +178,43 @@ class GpgExecutor(private val context: Context) {
         } catch (e: Exception) {
             AppLogger.log("ERROR encrypt: ${e.message}")
             EncryptResult(false, errorMessage = e.message ?: "Encrypt gagal")
+        }
+    }
+
+    // ── Encrypt Symmetric ────────────────────────────────────────────────────
+
+    fun encryptSymmetric(dataFile: File, passphrase: String, armor: Boolean): EncryptResult {
+        AppLogger.log("DEBUG: encryptSymmetric() file=${dataFile.name} armor=$armor")
+        return try {
+            val ext = if (armor) ".asc" else ".gpg"
+            val outFile = File(context.cacheDir, dataFile.name + ext)
+            val rawOut: OutputStream =
+                if (armor) ArmoredOutputStream(outFile.outputStream()) else outFile.outputStream()
+
+            val encGen = PGPEncryptedDataGenerator(
+                JcePGPDataEncryptorBuilder(SymmetricKeyAlgorithmTags.AES_256)
+                    .setWithIntegrityPacket(true)
+                    .setSecureRandom(SecureRandom())
+                    .setProvider("BC")
+            ).apply {
+                addMethod(JcePBESKeyEncryptionMethodGenerator(passphrase.toCharArray())
+                    .setProvider("BC"))
+            }
+
+            encGen.open(rawOut, ByteArray(1 shl 16)).use { encOut ->
+                PGPCompressedDataGenerator(PGPCompressedData.ZIP).open(encOut).use { cos ->
+                    PGPLiteralDataGenerator().open(cos, PGPLiteralData.BINARY,
+                        dataFile.name, dataFile.length(), Date()).use { los ->
+                        dataFile.inputStream().use { it.copyTo(los) }
+                    }
+                }
+            }
+            rawOut.close()
+            AppLogger.log("DEBUG: encryptSymmetric() output=${outFile.absolutePath}")
+            EncryptResult(success = true, outputPath = outFile.absolutePath)
+        } catch (e: Exception) {
+            AppLogger.log("ERROR encryptSymmetric: ${e.message}")
+            EncryptResult(false, errorMessage = e.message ?: "Encrypt simetris gagal")
         }
     }
 
@@ -383,6 +420,9 @@ class GpgExecutor(private val context: Context) {
             conn.connectTimeout = 10000
             conn.readTimeout = 15000
             conn.setRequestProperty("User-Agent", "GPGVerifier/1.0")
+            val responseCode = conn.responseCode
+            if (responseCode != 200)
+                return GpgOperationResult.Failure("Keyserver error HTTP $responseCode — key tidak ditemukan")
             val count = tryImportPublicKeys(conn.inputStream)
             GpgOperationResult.Success("$count key diimport dari $keyserver")
         } catch (e: Exception) {
