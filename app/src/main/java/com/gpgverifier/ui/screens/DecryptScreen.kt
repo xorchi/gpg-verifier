@@ -18,6 +18,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.gpgverifier.keyring.KeyringRepository
 import com.gpgverifier.model.DecryptResult
+import com.gpgverifier.util.FileShareHelper
 import kotlinx.coroutines.launch
 
 @Composable
@@ -37,6 +38,14 @@ fun DecryptScreen(modifier: Modifier = Modifier) {
     LaunchedEffect(snackMsg) { snackMsg?.let { snackState.showSnackbar(it); snackMsg = null } }
 
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { inputUri = it }
+
+    // Launcher untuk ACTION_CREATE_DOCUMENT (SAF save)
+    val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { actResult ->
+        val destUri = actResult.data?.data ?: return@rememberLauncherForActivityResult
+        val srcPath = result?.outputPath ?: return@rememberLauncherForActivityResult
+        val ok = FileShareHelper.copyToUri(context, srcPath, destUri)
+        snackMsg = if (ok) "✓ File berhasil disimpan" else "✗ Gagal menyimpan file"
+    }
 
     Scaffold(
         modifier = modifier,
@@ -94,16 +103,40 @@ fun DecryptScreen(modifier: Modifier = Modifier) {
                             containerColor = MaterialTheme.colorScheme.primaryContainer)
                     ) {
                         Column(modifier = Modifier.padding(16.dp),
-                               verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                               verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.CheckCircle, null,
                                     tint = MaterialTheme.colorScheme.primary)
                                 Spacer(Modifier.width(8.dp))
                                 Text("Decryption successful", fontWeight = FontWeight.Bold)
                             }
-                            Text("Output saved to cache:", style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-                            Text(res.outputPath, style = MaterialTheme.typography.bodySmall)
+
+                            // ── Tombol Save & Share ───────────────────────────
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(
+                                    onClick = {
+                                        val intent = FileShareHelper.createSaveIntent(res.outputPath)
+                                        saveLauncher.launch(intent)
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(Icons.Default.Save, null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Simpan")
+                                }
+                                OutlinedButton(
+                                    onClick = { FileShareHelper.shareFile(context, res.outputPath) },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(Icons.Default.Share, null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Bagikan")
+                                }
+                            }
+
+                            Text("Cache: ${res.outputPath}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f))
                         }
                     }
                 } else {

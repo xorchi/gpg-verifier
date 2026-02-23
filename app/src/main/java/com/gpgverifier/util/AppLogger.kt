@@ -1,29 +1,57 @@
 package com.gpgverifier.util
 
-import android.os.Environment
+import android.util.Log
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.*
 
+/**
+ * Logger internal aplikasi.
+ * - Debug  : logcat + file privat di filesDir/logs/app.log
+ * - Release: hanya logcat — tidak ada file di storage publik
+ *
+ * Tidak memerlukan izin storage apapun. Aman di Android 11+.
+ * Panggil AppLogger.init(filesDir) sekali dari MainActivity.
+ */
 object AppLogger {
+    private const val TAG = "GPGVerifier"
+    private const val MAX_LOG_BYTES = 512 * 1024L // rotate di 512 KB
+
+    private var logFile: File? = null
+    private val fmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+
+    fun init(filesDir: File) {
+        val dir = File(filesDir, "logs").also { it.mkdirs() }
+        logFile = File(dir, "app.log").also { rotateIfNeeded(it) }
+    }
+
     fun log(message: String) {
-        try {
-            // Langsung tembak ke folder Download
-            val downloadDir = File("/storage/emulated/0/Download")
-            if (!downloadDir.exists()) {
-                downloadDir.mkdirs()
+        when {
+            message.startsWith("ERROR") -> Log.e(TAG, message)
+            message.startsWith("WARN")  -> Log.w(TAG, message)
+            else                        -> Log.d(TAG, message)
+        }
+        logFile?.let { file ->
+            try {
+                FileOutputStream(file, true).use {
+                    it.write("[${fmt.format(Date())}] $message\n".toByteArray())
+                }
+                rotateIfNeeded(file)
+            } catch (e: Exception) {
+                Log.e(TAG, "Logger write failed: ${e.message}")
             }
-            
-            val logFile = File(downloadDir, "gpg_debug_log.txt")
-            val timeStamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
-            val logEntry = "[$timeStamp] $message\n"
-            
-            FileOutputStream(logFile, true).use { 
-                it.write(logEntry.toByteArray()) 
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
+        }
+    }
+
+    fun readLogs(): String = logFile?.takeIf { it.exists() }?.readText() ?: "(log kosong)"
+
+    fun clearLogs() { logFile?.delete(); logFile?.createNewFile() }
+
+    private fun rotateIfNeeded(file: File) {
+        if (file.exists() && file.length() > MAX_LOG_BYTES) {
+            File(file.parent, "app.log.bak").also { it.delete() }
+            file.renameTo(File(file.parent, "app.log.bak"))
         }
     }
 }

@@ -20,6 +20,7 @@ import com.gpgverifier.keyring.KeyringRepository
 import com.gpgverifier.model.GpgKey
 import com.gpgverifier.model.GpgOperationResult
 import com.gpgverifier.model.SignMode
+import com.gpgverifier.util.FileShareHelper
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -160,7 +161,7 @@ fun SignTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope, s
             }
 
             outputPath?.let {
-                SuccessCard("Signed file saved to cache:\n$it")
+                SuccessCard("Signed file berhasil dibuat.", outputPath = it)
             }
         }
     }
@@ -255,21 +256,51 @@ fun EncryptTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope
                 Text("Encrypt", fontWeight = FontWeight.Bold)
             }
 
-            outputPath?.let { SuccessCard("Encrypted file saved to cache:\n$it") }
+            outputPath?.let { SuccessCard("Encrypted file berhasil dibuat.", outputPath = it) }
         }
     }
 }
 
 @Composable
-fun SuccessCard(message: String) {
+fun SuccessCard(message: String, outputPath: String? = null) {
+    val context = LocalContext.current
+
+    val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { actResult ->
+        val destUri = actResult.data?.data ?: return@rememberLauncherForActivityResult
+        if (outputPath != null) FileShareHelper.copyToUri(context, outputPath, destUri)
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
     ) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.CheckCircle, null, tint = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.width(12.dp))
-            Text(message, style = MaterialTheme.typography.bodyMedium)
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.CheckCircle, null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(12.dp))
+                Text(message, style = MaterialTheme.typography.bodyMedium)
+            }
+            if (outputPath != null) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = {
+                            val intent = FileShareHelper.createSaveIntent(outputPath)
+                            saveLauncher.launch(intent)
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.Save, null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp)); Text("Simpan")
+                    }
+                    OutlinedButton(
+                        onClick = { FileShareHelper.shareFile(context, outputPath) },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.Share, null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp)); Text("Bagikan")
+                    }
+                }
+            }
         }
     }
 }

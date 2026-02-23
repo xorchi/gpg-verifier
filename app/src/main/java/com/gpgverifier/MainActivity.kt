@@ -54,6 +54,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (Security.getProvider("BC") == null) Security.addProvider(BouncyCastleProvider())
+        AppLogger.init(filesDir) // inisialisasi logger ke storage privat
         AppLogger.log("INFO: App started - onCreate()")
         checkAndRequestPermissions()
         enableEdgeToEdge()

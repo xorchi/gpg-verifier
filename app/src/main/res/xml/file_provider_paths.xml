@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- cache internal app: tempat GpgExecutor menyimpan hasil decrypt/sign/encrypt -->
+    <cache-path name="gpg_output" path="." />
+    <!-- files internal app: tempat log disimpan -->
+    <files-path name="gpg_files" path="." />
+</paths>

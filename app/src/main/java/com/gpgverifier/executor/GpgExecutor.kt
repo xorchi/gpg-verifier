@@ -9,6 +9,7 @@ import org.bouncycastle.bcpg.SymmetricKeyAlgorithmTags
 import org.bouncycastle.bcpg.sig.KeyFlags
 import org.bouncycastle.openpgp.*
 import org.bouncycastle.openpgp.operator.jcajce.*
+import java.io.InputStream
 import java.io.*
 import java.net.URL
 import java.security.SecureRandom
@@ -223,49 +224,72 @@ class GpgExecutor(private val context: Context) {
     fun decrypt(dataFile: File, passphrase: String): DecryptResult {
         AppLogger.log("DEBUG: decrypt() file=${dataFile.name}")
         return try {
+            // Baca seluruh konten ke buffer terlebih dahulu agar stream tidak terkonsumsi ganda
+            val rawBytes = PGPUtil.getDecoderStream(dataFile.inputStream()).readBytes()
+
+            val factory = PGPObjectFactory(rawBytes.inputStream(), JcaKeyFingerprintCalculator())
+            // Cari PGPEncryptedDataList — bisa langsung atau dibungkus objek lain
+            var encData: PGPEncryptedDataList? = null
+            var nextObj: Any? = factory.nextObject()
+            while (nextObj != null && encData == null) {
+                encData = nextObj as? PGPEncryptedDataList
+                if (encData == null) nextObj = factory.nextObject()
+            }
+            if (encData == null)
+                return DecryptResult(false, errorMessage = "File bukan data terenkripsi GPG")
+
+            // ── Coba dekripsi public-key ──────────────────────────────────────
             val secRings = loadSecretKeyring()
-                ?: return DecryptResult(false, errorMessage = "Tidak ada secret key di keyring")
-            val decoded = PGPUtil.getDecoderStream(dataFile.inputStream())
-            var obj: Any? = PGPObjectFactory(decoded, JcaKeyFingerprintCalculator()).nextObject()
-            val encData = (obj as? PGPEncryptedDataList)
-                ?: (PGPObjectFactory(decoded, JcaKeyFingerprintCalculator()).nextObject() as? PGPEncryptedDataList)
-                ?: return DecryptResult(false, errorMessage = "File bukan data terenkripsi GPG")
+            var plainStream: InputStream? = null
 
-            var privKey: PGPPrivateKey? = null
-            var pked: PGPPublicKeyEncryptedData? = null
-            outer@ for (enc in encData) {
-                if (enc !is PGPPublicKeyEncryptedData) continue
-                for (ring in secRings) {
-                    val sec = ring.getSecretKey(enc.keyID) ?: continue
-                    privKey = try {
-                        sec.extractPrivateKey(
-                            org.bouncycastle.openpgp.operator.bc.BcPBESecretKeyDecryptorBuilder(org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider()).build(passphrase.toCharArray())
+            if (secRings != null) {
+                outer@ for (enc in encData) {
+                    if (enc !is PGPPublicKeyEncryptedData) continue
+                    for (ring in secRings) {
+                        val sec = ring.getSecretKey(enc.keyID) ?: continue
+                        val privKey = try {
+                            sec.extractPrivateKey(
+                                org.bouncycastle.openpgp.operator.bc.BcPBESecretKeyDecryptorBuilder(
+                                    org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider()
+                                ).build(passphrase.toCharArray())
+                            )
+                        } catch (e: Exception) { continue }
+                        plainStream = enc.getDataStream(
+                            JcePublicKeyDataDecryptorFactoryBuilder().setProvider("BC").build(privKey)
                         )
-                    } catch (e: Exception) { continue }
-                    pked = enc; break@outer
-                }
-            }
-            if (privKey == null || pked == null)
-                return DecryptResult(false, errorMessage = "Tidak ada secret key yang cocok atau passphrase salah")
-
-            val plainFactory = PGPObjectFactory(
-                pked.getDataStream(JcePublicKeyDataDecryptorFactoryBuilder().setProvider("BC").build(privKey)),
-                JcaKeyFingerprintCalculator()
-            )
-            var litData: PGPLiteralData? = null
-            var pObj = plainFactory.nextObject()
-            while (pObj != null && litData == null) {
-                when (pObj) {
-                    is PGPCompressedData -> {
-                        val cf = PGPObjectFactory(pObj.dataStream, JcaKeyFingerprintCalculator())
-                        var cObj = cf.nextObject()
-                        while (cObj != null) { if (cObj is PGPLiteralData) { litData = cObj; break }; cObj = cf.nextObject() }
+                        break@outer
                     }
-                    is PGPLiteralData -> litData = pObj
                 }
-                if (litData == null) pObj = plainFactory.nextObject()
             }
-            if (litData == null) return DecryptResult(false, errorMessage = "Struktur data GPG tidak valid")
+
+            // ── Fallback: coba dekripsi simetris (PBE) ────────────────────────
+            if (plainStream == null && passphrase.isNotEmpty()) {
+                for (enc in encData) {
+                    if (enc !is PGPPBEEncryptedData) continue
+                    plainStream = try {
+                        enc.getDataStream(
+                            org.bouncycastle.openpgp.operator.bc.BcPBEDataDecryptorFactory(
+                                passphrase.toCharArray(),
+                                org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider()
+                            )
+                        )
+                    } catch (e: Exception) { null }
+                    if (plainStream != null) break
+                }
+            }
+
+            if (plainStream == null)
+                return DecryptResult(
+                    false,
+                    errorMessage = if (secRings == null)
+                        "Tidak ada secret key di keyring dan tidak ada passphrase simetris yang cocok"
+                    else
+                        "Tidak ada secret key yang cocok atau passphrase salah"
+                )
+
+            // ── Unwrap compressed + literal data ─────────────────────────────
+            val litData = unwrapToLiteralData(plainStream)
+                ?: return DecryptResult(false, errorMessage = "Struktur data GPG tidak valid")
 
             val outName = litData.fileName.ifBlank {
                 dataFile.name.removeSuffix(".gpg").removeSuffix(".asc")
@@ -278,6 +302,22 @@ class GpgExecutor(private val context: Context) {
             AppLogger.log("ERROR decrypt: ${e.message}")
             DecryptResult(false, errorMessage = e.message ?: "Decrypt gagal")
         }
+    }
+
+    /** Menelusuri lapisan Compressed/OnePass/Signature hingga menemukan PGPLiteralData */
+    private fun unwrapToLiteralData(stream: InputStream): PGPLiteralData? {
+        val factory = PGPObjectFactory(stream, JcaKeyFingerprintCalculator())
+        var obj = factory.nextObject()
+        while (obj != null) {
+            when (obj) {
+                is PGPLiteralData    -> return obj
+                is PGPCompressedData -> return unwrapToLiteralData(obj.dataStream)
+                is PGPOnePassSignatureList,
+                is PGPSignatureList  -> { /* lewati, lanjut ke objek berikutnya */ }
+            }
+            obj = factory.nextObject()
+        }
+        return null
     }
 
     // ── Generate Key ─────────────────────────────────────────────────────────
