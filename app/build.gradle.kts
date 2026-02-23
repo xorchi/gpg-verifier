@@ -63,6 +63,18 @@ android {
             assets.srcDirs("src/main/assets")
         }
     }
+    packaging {
+        resources {
+            excludes += setOf(
+                "META-INF/versions/9/OSGI-INF/MANIFEST.MF",
+                "META-INF/BCKEY.DSA",
+                "META-INF/BCKEY.SF",
+                "META-INF/*.SF",
+                "META-INF/*.DSA",
+                "META-INF/*.RSA"
+            )
+        }
+    }
 }
 
 dependencies {
