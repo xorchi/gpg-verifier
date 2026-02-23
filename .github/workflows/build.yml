@@ -1,22 +1,20 @@
-name: Build & Sign APK                      
-on:                                           
+name: Build & Sign APK
+on:
   push:
     branches: [ master, feat-debugging-logger ]
   pull_request:
     branches: [ master ]
-  workflow_dispatch:                        
+  workflow_dispatch:
 
-jobs:                                         
+jobs:
   build:
-    runs-on: ubuntu-latest                      
+    runs-on: ubuntu-latest
     timeout-minutes: 60
 
-    steps:                                        
-      # ── Checkout ────────────────────────────────────────────────────────────
+    steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ── Java 17 ─────────────────────────────────────────────────────────────
       - name: Setup JDK 17
         uses: actions/setup-java@v4
         with:
@@ -24,11 +22,9 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      # ── Android SDK ──────────────────────────────────────────────────────────
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      # ── Cache Gradle ─────────────────────────────────────────────────────────
       - name: Cache Gradle packages
         uses: actions/cache@v4
         with:
@@ -38,19 +34,15 @@ jobs:
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/libs.versions.toml') }}
           restore-keys: ${{ runner.os }}-gradle-
 
-
-      # ── Buat keystore dari secret ────────────────────────────────────────────
       - name: Decode keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
           echo "$KEYSTORE_BASE64" | base64 --decode > app/keystore.jks
 
-      # ── Grant execute permission gradle ─────────────────────────────────────
       - name: Make gradlew executable
         run: chmod +x gradlew
 
-      # ── Generate gradle.properties ───────────────────────────────────────────
       - name: Generate gradle.properties
         run: |
           cat > gradle.properties << EOF
@@ -60,38 +52,55 @@ jobs:
           org.gradle.daemon=false
           EOF
 
-
-      # ── Download GPG static binary untuk armeabi-v7a ────────────────────────
-      - name: Download GPG static binary (armeabi-v7a)
+      - name: Download GPG binary (armeabi-v7a) to assets
         run: |
-          mkdir -p app/src/main/jniLibs/armeabi-v7a
+          mkdir -p app/src/main/assets
 
-          # Cari versi terbaru gnupg2 dari Termux
-          PKG_URL=$(curl -s "https://packages.termux.dev/apt/termux-main/dists/stable/main/binary-arm/Packages" \
-            | grep -A5 "^Package: gnupg$" \
-            | grep "^Filename:" \
-            | head -1 \
-            | awk '{print $2}')
+          # Ambil daftar paket dari Termux repository (arm/armeabi-v7a)
+          PACKAGES=$(curl -fsSL "https://packages.termux.dev/apt/termux-main/dists/stable/main/binary-arm/Packages")
 
-          echo "Package path: $PKG_URL"
-          curl -L "https://packages.termux.dev/apt/termux-main/$PKG_URL" -o /tmp/gnupg.deb
+          # Cari paket gnupg atau gnupg2
+          PKG_URL=""
+          for PKG_NAME in "gnupg" "gnupg2"; do
+            PKG_URL=$(echo "$PACKAGES" \
+              | awk "/^Package: ${PKG_NAME}$/{found=1} found && /^Filename:/{print \$2; exit}" )
+            [ -n "$PKG_URL" ] && echo "Found: $PKG_NAME -> $PKG_URL" && break
+          done
 
-          # Ekstrak binary gpg dari .deb
+          if [ -z "$PKG_URL" ]; then
+            echo "::error::Gagal menemukan paket gnupg/gnupg2 di Termux repository"
+            echo "$PACKAGES" | grep -i "gpg" || echo "(tidak ada entri gpg)"
+            exit 1
+          fi
+
+          # Unduh .deb
+          curl -fsSL "https://packages.termux.dev/apt/termux-main/$PKG_URL" -o /tmp/gnupg.deb
+
+          # Validasi format .deb
+          if ! file /tmp/gnupg.deb | grep -q "Debian binary package"; then
+            echo "::error::File yang diunduh bukan .deb yang valid"
+            file /tmp/gnupg.deb
+            exit 1
+          fi
+
+          # Ekstrak binary gpg
           cd /tmp && ar x gnupg.deb
           tar -xf data.tar.* --wildcards "*/bin/gpg" -C /tmp/ 2>/dev/null || \
-          tar -xf data.tar.* --wildcards "*/gpg" -C /tmp/ 2>/dev/null
+          tar -xf data.tar.* --wildcards "*/gpg"     -C /tmp/ 2>/dev/null
 
-          # Cari dan salin binary
           GPG_BIN=$(find /tmp -name "gpg" -type f | head -1)
-          echo "GPG binary found: $GPG_BIN"
-          cp "$GPG_BIN" app/src/main/jniLibs/armeabi-v7a/libgpg.so
-          chmod +x app/src/main/jniLibs/armeabi-v7a/libgpg.so
+          if [ -z "$GPG_BIN" ]; then
+            echo "::error::Binary gpg tidak ditemukan setelah ekstraksi"
+            exit 1
+          fi
 
-          # Verifikasi
-          file app/src/main/jniLibs/armeabi-v7a/libgpg.so
-          ls -lh app/src/main/jniLibs/armeabi-v7a/libgpg.so
+          echo "GPG binary: $GPG_BIN"
+          cp "$GPG_BIN" $GITHUB_WORKSPACE/app/src/main/assets/gpg
+          chmod +x $GITHUB_WORKSPACE/app/src/main/assets/gpg
 
-      # ── Build Release APK ────────────────────────────────────────────────────
+          file $GITHUB_WORKSPACE/app/src/main/assets/gpg
+          ls -lh $GITHUB_WORKSPACE/app/src/main/assets/gpg
+
       - name: Build Release APK
         env:
           KEYSTORE_PATH: keystore.jks
@@ -100,7 +109,6 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./gradlew assembleRelease --no-daemon --stacktrace
 
-      # ── Upload artifact (Langsung dari folder output Gradle) ────────────────
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
@@ -108,7 +116,6 @@ jobs:
           path: app/build/outputs/apk/release/*.apk
           retention-days: 7
 
-      # ── Cleanup keystore ─────────────────────────────────────────────────────
       - name: Cleanup sensitive files
         if: always()
         run: rm -f app/keystore.jks
