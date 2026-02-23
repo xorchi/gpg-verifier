@@ -63,6 +63,16 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x gradlew
 
+      # ── Generate gradle.properties ───────────────────────────────────────────
+      - name: Generate gradle.properties
+        run: |
+          cat > gradle.properties << EOF
+          android.useAndroidX=true
+          android.enableJetifier=true
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          org.gradle.daemon=false
+          EOF
+
       # ── Build Release APK ────────────────────────────────────────────────────
       - name: Build Release APK
         env:
