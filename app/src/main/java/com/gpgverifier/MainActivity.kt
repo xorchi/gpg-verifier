@@ -38,7 +38,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Panggil pengecekan izin
         checkAndRequestPermissions()
         
         enableEdgeToEdge()
@@ -51,35 +50,30 @@ class MainActivity : ComponentActivity() {
 
     private fun checkAndRequestPermissions() {
         val permissions = mutableListOf<String>()
-        
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) 
-            != PackageManager.PERMISSION_GRANTED) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
             permissions.add(Manifest.permission.READ_EXTERNAL_STORAGE)
         }
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) 
-            != PackageManager.PERMISSION_GRANTED) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
             permissions.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
         }
 
         if (permissions.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, permissions.toTypedArray(), 100)
-        } else {
-            AppLogger.log("INFO: Izin storage sudah aktif.")
         }
     }
 
-    // PERBAIKAN: Parameter Array harus pakai String (tanpa tanda tanya di dalam Array)
+    // FIXED: Signature sesuai dengan kebutuhan compiler Kotlin Android
     override fun onRequestPermissionsResult(
-        requestCode: Int, 
-        permissions: Array<out String>, 
+        requestCode: Int,
+        permissions: Array<out String>,
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 100) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                AppLogger.log("INFO: User mengizinkan akses storage.")
+                AppLogger.log("INFO: User mengizinkan storage.")
             } else {
-                AppLogger.log("WARN: User menolak akses storage.")
+                AppLogger.log("WARN: User menolak storage.")
             }
         }
     }
@@ -89,16 +83,10 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainScaffold() {
     var selectedTab by remember { mutableStateOf(0) }
-
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
-            TopAppBar(
-                title = { Text("GPG Verifier") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
-            )
+            TopAppBar(title = { Text("GPG Verifier") })
         },
         bottomBar = {
             NavigationBar {
@@ -106,12 +94,7 @@ fun MainScaffold() {
                     NavigationBarItem(
                         selected = selectedTab == index,
                         onClick = { selectedTab = index },
-                        icon = {
-                            Icon(
-                                if (selectedTab == index) item.selectedIcon else item.unselectedIcon,
-                                contentDescription = item.label
-                            )
-                        },
+                        icon = { Icon(if (selectedTab == index) item.selectedIcon else item.unselectedIcon, contentDescription = item.label) },
                         label = { Text(item.label) }
                     )
                 }
