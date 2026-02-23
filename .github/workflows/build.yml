@@ -47,8 +47,8 @@ jobs:
       # ── Verify GPG binary ada ────────────────────────────────────────────────
       - name: Verify GPG binary
         run: |
-          ls -la app/src/main/assets/
-          file app/src/main/assets/gpg
+          ls -la app/src/main/jniLibs/armeabi-v7a/
+          file app/src/main/jniLibs/armeabi-v7a/libgpg.so
 
       # ── Buat keystore dari secret ────────────────────────────────────────────
       - name: Decode keystore
