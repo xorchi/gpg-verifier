@@ -2,7 +2,6 @@ package com.gpgverifier.keyring
 
 import android.content.Context
 import android.net.Uri
-import androidx.documentfile.provider.DocumentFile
 import com.gpgverifier.executor.GpgExecutor
 import com.gpgverifier.model.GpgKey
 import com.gpgverifier.model.GpgOperationResult
@@ -20,13 +19,13 @@ class KeyringRepository(context: Context) {
     // ── Verifikasi ──────────────────────────────────────────────────────────
     suspend fun verify(dataUri: Uri, sigUri: Uri, context: Context): VerificationResult =
         withContext(Dispatchers.IO) {
-            AppLogger.log("Memulai proses verifikasi...")
+            AppLogger.log("INFO: Memulai proses verifikasi...")
             try {
                 val dataFile = uriToTempFile(dataUri, context, "data_file")
                 val sigFile = uriToTempFile(sigUri, context, "sig_file")
                 try {
                     val result = executor.verify(dataFile, sigFile)
-                    AppLogger.log("Verifikasi selesai dijalankan.")
+                    AppLogger.log("INFO: Verifikasi selesai.")
                     result
                 } finally {
                     dataFile.delete()
@@ -41,10 +40,10 @@ class KeyringRepository(context: Context) {
 
     // ── Key listing ─────────────────────────────────────────────────────────
     suspend fun listPublicKeys(): List<GpgKey> = withContext(Dispatchers.IO) {
-        AppLogger.log("Mencoba list public keys...")
+        AppLogger.log("INFO: Mencoba list public keys...")
         try {
             val keys = executor.listKeys()
-            AppLogger.log("Berhasil mengambil ${keys.size} public keys.")
+            AppLogger.log("INFO: Berhasil ambil ${keys.size} public keys.")
             keys
         } catch (e: Exception) {
             AppLogger.log("CRASH di listPublicKeys: ${e.message}")
@@ -54,10 +53,10 @@ class KeyringRepository(context: Context) {
     }
 
     suspend fun listSecretKeys(): List<GpgKey> = withContext(Dispatchers.IO) {
-        AppLogger.log("Mencoba list secret keys...")
+        AppLogger.log("INFO: Mencoba list secret keys...")
         try {
             val keys = executor.listSecretKeys()
-            AppLogger.log("Berhasil mengambil ${keys.size} secret keys.")
+            AppLogger.log("INFO: Berhasil ambil ${keys.size} secret keys.")
             keys
         } catch (e: Exception) {
             AppLogger.log("CRASH di listSecretKeys: ${e.message}")
@@ -69,7 +68,7 @@ class KeyringRepository(context: Context) {
     // ── Import ──────────────────────────────────────────────────────────────
     suspend fun importKeyFromFile(uri: Uri, context: Context): GpgOperationResult =
         withContext(Dispatchers.IO) {
-            AppLogger.log("Mencoba import key dari file...")
+            AppLogger.log("INFO: Mencoba import key dari file...")
             try {
                 val keyFile = uriToTempFile(uri, context, "import_key")
                 try {
@@ -80,19 +79,19 @@ class KeyringRepository(context: Context) {
             } catch (e: Exception) {
                 AppLogger.log("CRASH di importKeyFromFile: ${e.message}")
                 AppLogger.log("StackTrace: ${e.stackTraceToString()}")
-                GpgOperationResult(false, "Gagal import: ${e.message}")
+                throw e
             }
         }
 
     suspend fun importKeyFromKeyserver(keyId: String, keyserver: String): GpgOperationResult =
         withContext(Dispatchers.IO) {
-            AppLogger.log("Mencoba import key dari keyserver: $keyserver")
+            AppLogger.log("INFO: Import dari keyserver: $keyserver")
             try {
                 executor.importKeyFromKeyserver(keyId, keyserver)
             } catch (e: Exception) {
                 AppLogger.log("CRASH di importKeyFromKeyserver: ${e.message}")
                 AppLogger.log("StackTrace: ${e.stackTraceToString()}")
-                GpgOperationResult(false, "Gagal import: ${e.message}")
+                throw e
             }
         }
 
@@ -103,7 +102,7 @@ class KeyringRepository(context: Context) {
                 executor.deleteKey(fingerprint)
             } catch (e: Exception) {
                 AppLogger.log("CRASH di deleteKey: ${e.message}")
-                GpgOperationResult(false, e.message ?: "Unknown error")
+                throw e
             }
         }
 
@@ -113,7 +112,7 @@ class KeyringRepository(context: Context) {
                 executor.exportKey(fingerprint)
             } catch (e: Exception) {
                 AppLogger.log("CRASH di exportKey: ${e.message}")
-                GpgOperationResult(false, e.message ?: "Unknown error")
+                throw e
             }
         }
 
@@ -123,7 +122,7 @@ class KeyringRepository(context: Context) {
                 executor.trustKey(fingerprint, trustLevel)
             } catch (e: Exception) {
                 AppLogger.log("CRASH di trustKey: ${e.message}")
-                GpgOperationResult(false, e.message ?: "Unknown error")
+                throw e
             }
         }
 
@@ -135,7 +134,7 @@ class KeyringRepository(context: Context) {
                 tempFile.outputStream().use { output ->
                     input.copyTo(output)
                 }
-            } ?: throw Exception("Gagal membuka InputStream dari Uri")
+            } ?: throw Exception("Gagal buka InputStream dari Uri")
             tempFile
         } catch (e: Exception) {
             AppLogger.log("ERROR di uriToTempFile: ${e.message}")
