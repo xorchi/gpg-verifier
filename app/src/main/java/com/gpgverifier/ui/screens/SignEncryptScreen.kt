@@ -18,7 +18,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.gpgverifier.keyring.KeyringRepository
 import com.gpgverifier.model.GpgKey
-import com.gpgverifier.model.GpgOperationResult
 import com.gpgverifier.model.SignMode
 import com.gpgverifier.util.FileShareHelper
 import kotlinx.coroutines.launch
@@ -31,9 +30,8 @@ fun SignEncryptScreen(modifier: Modifier = Modifier) {
     val scope   = rememberCoroutineScope()
     val scroll  = rememberScrollState()
 
-    // Tabs: Sign | Encrypt
     var tabIndex by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Sign", "Encrypt")
+    val tabs = listOf("Sign", "Encrypt", "Symmetric")
 
     Column(modifier = modifier.fillMaxSize()) {
         TabRow(selectedTabIndex = tabIndex) {
@@ -44,6 +42,7 @@ fun SignEncryptScreen(modifier: Modifier = Modifier) {
         when (tabIndex) {
             0 -> SignTab(repo, scope, scroll)
             1 -> EncryptTab(repo, scope, scroll)
+            2 -> SymmetricEncryptTab(repo, scope, scroll)
         }
     }
 }
@@ -54,13 +53,13 @@ fun SignEncryptScreen(modifier: Modifier = Modifier) {
 @Composable
 fun SignTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope, scroll: androidx.compose.foundation.ScrollState) {
     val context = LocalContext.current
-    var inputUri  by remember { mutableStateOf<Uri?>(null) }
+    var inputUri   by remember { mutableStateOf<Uri?>(null) }
     var secretKeys by remember { mutableStateOf<List<GpgKey>>(emptyList()) }
     var selectedKey by remember { mutableStateOf<GpgKey?>(null) }
-    var signMode  by remember { mutableStateOf(SignMode.DETACH_ARMOR) }
+    var signMode   by remember { mutableStateOf(SignMode.DETACH_ARMOR) }
     var passphrase by remember { mutableStateOf("") }
-    var isLoading by remember { mutableStateOf(false) }
-    var resultMsg by remember { mutableStateOf<String?>(null) }
+    var isLoading  by remember { mutableStateOf(false) }
+    var resultMsg  by remember { mutableStateOf<String?>(null) }
     var outputPath by remember { mutableStateOf<String?>(null) }
     val snackState = remember { SnackbarHostState() }
 
@@ -70,25 +69,21 @@ fun SignTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope, s
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { inputUri = it }
 
     val modes = listOf(
-        SignMode.DETACH_ARMOR  to "Detach (armored .sig.asc)",
-        SignMode.DETACH        to "Detach (binary .sig)",
-        SignMode.CLEARSIGN     to "Clearsign (.asc)",
-        SignMode.NORMAL_ARMOR  to "Embedded (armored .gpg.asc)",
-        SignMode.NORMAL        to "Embedded (binary .gpg)"
+        SignMode.DETACH_ARMOR to "Detach (armored .sig.asc)",
+        SignMode.DETACH       to "Detach (binary .sig)",
+        SignMode.CLEARSIGN    to "Clearsign (.asc)",
+        SignMode.NORMAL_ARMOR to "Embedded (armored .gpg.asc)",
+        SignMode.NORMAL       to "Embedded (binary .gpg)"
     )
 
     Scaffold(snackbarHost = { SnackbarHost(snackState) }) { padding ->
         Column(
-            modifier = Modifier
-                .padding(padding).padding(16.dp)
-                .verticalScroll(scroll),
+            modifier = Modifier.padding(padding).padding(16.dp).verticalScroll(scroll),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text("Sign File", style = MaterialTheme.typography.titleMedium)
 
-            FilePickerCard("Input File", inputUri, Icons.Default.InsertDriveFile) {
-                filePicker.launch("*/*")
-            }
+            FilePickerCard("Input File", inputUri, Icons.Default.InsertDriveFile) { filePicker.launch("*/*") }
 
             if (secretKeys.isEmpty()) {
                 Card(modifier = Modifier.fillMaxWidth()) {
@@ -124,20 +119,16 @@ fun SignTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope, s
                 )
                 ExposedDropdownMenu(expanded = modeExpanded, onDismissRequest = { modeExpanded = false }) {
                     modes.forEach { (mode, label) ->
-                        DropdownMenuItem(text = { Text(label) }, onClick = {
-                            signMode = mode; modeExpanded = false
-                        })
+                        DropdownMenuItem(text = { Text(label) }, onClick = { signMode = mode; modeExpanded = false })
                     }
                 }
             }
 
             OutlinedTextField(
-                value = passphrase,
-                onValueChange = { passphrase = it },
+                value = passphrase, onValueChange = { passphrase = it },
                 label = { Text("Passphrase") },
                 visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
+                modifier = Modifier.fillMaxWidth(), singleLine = true
             )
 
             Button(
@@ -160,19 +151,17 @@ fun SignTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope, s
                 Text("Sign", fontWeight = FontWeight.Bold)
             }
 
-            outputPath?.let {
-                SuccessCard("Signed file berhasil dibuat.", outputPath = it)
-            }
+            outputPath?.let { SuccessCard("Signed file berhasil dibuat.", outputPath = it) }
         }
     }
 }
 
-// ── Encrypt Tab ───────────────────────────────────────────────────────────────
+// ── Encrypt Tab (Asymmetric) ──────────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EncryptTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope, scroll: androidx.compose.foundation.ScrollState) {
-    val context = LocalContext.current
+    val context    = LocalContext.current
     var inputUri   by remember { mutableStateOf<Uri?>(null) }
     var publicKeys by remember { mutableStateOf<List<GpgKey>>(emptyList()) }
     val selected   = remember { mutableStateListOf<String>() }
@@ -189,16 +178,14 @@ fun EncryptTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope
 
     Scaffold(snackbarHost = { SnackbarHost(snackState) }) { padding ->
         Column(
-            modifier = Modifier
-                .padding(padding).padding(16.dp)
-                .verticalScroll(scroll),
+            modifier = Modifier.padding(padding).padding(16.dp).verticalScroll(scroll),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text("Encrypt File", style = MaterialTheme.typography.titleMedium)
+            Text("Encrypt File (Asymmetric)", style = MaterialTheme.typography.titleMedium)
+            Text("Enkripsi dengan public key penerima.", style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
 
-            FilePickerCard("Input File", inputUri, Icons.Default.InsertDriveFile) {
-                filePicker.launch("*/*")
-            }
+            FilePickerCard("Input File", inputUri, Icons.Default.InsertDriveFile) { filePicker.launch("*/*") }
 
             if (publicKeys.isEmpty()) {
                 Card(modifier = Modifier.fillMaxWidth()) {
@@ -209,15 +196,11 @@ fun EncryptTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope
             } else {
                 Text("Recipients (select one or more)", style = MaterialTheme.typography.labelMedium)
                 publicKeys.forEach { key ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                         Checkbox(
                             checked = selected.contains(key.fingerprint),
                             onCheckedChange = {
-                                if (it) selected.add(key.fingerprint)
-                                else selected.remove(key.fingerprint)
+                                if (it) selected.add(key.fingerprint) else selected.remove(key.fingerprint)
                             }
                         )
                         Column(modifier = Modifier.padding(start = 8.dp)) {
@@ -261,15 +244,98 @@ fun EncryptTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope
     }
 }
 
+// ── Symmetric Encrypt Tab ─────────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SymmetricEncryptTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope, scroll: androidx.compose.foundation.ScrollState) {
+    val context    = LocalContext.current
+    var inputUri   by remember { mutableStateOf<Uri?>(null) }
+    var passphrase by remember { mutableStateOf("") }
+    var confirm    by remember { mutableStateOf("") }
+    var armor      by remember { mutableStateOf(true) }
+    var isLoading  by remember { mutableStateOf(false) }
+    var resultMsg  by remember { mutableStateOf<String?>(null) }
+    var outputPath by remember { mutableStateOf<String?>(null) }
+    val snackState = remember { SnackbarHostState() }
+
+    LaunchedEffect(resultMsg) { resultMsg?.let { snackState.showSnackbar(it); resultMsg = null } }
+
+    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { inputUri = it }
+
+    val passphraseMatch = passphrase == confirm && passphrase.isNotEmpty()
+
+    Scaffold(snackbarHost = { SnackbarHost(snackState) }) { padding ->
+        Column(
+            modifier = Modifier.padding(padding).padding(16.dp).verticalScroll(scroll),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text("Encrypt File (Symmetric)", style = MaterialTheme.typography.titleMedium)
+            Text("Enkripsi dengan passphrase — tidak memerlukan key pair.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+
+            FilePickerCard("Input File", inputUri, Icons.Default.InsertDriveFile) { filePicker.launch("*/*") }
+
+            OutlinedTextField(
+                value = passphrase, onValueChange = { passphrase = it },
+                label = { Text("Passphrase") },
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(), singleLine = true
+            )
+
+            OutlinedTextField(
+                value = confirm, onValueChange = { confirm = it },
+                label = { Text("Konfirmasi Passphrase") },
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(), singleLine = true,
+                isError = confirm.isNotEmpty() && !passphraseMatch,
+                supportingText = {
+                    if (confirm.isNotEmpty() && !passphraseMatch)
+                        Text("Passphrase tidak cocok", color = MaterialTheme.colorScheme.error)
+                }
+            )
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Switch(checked = armor, onCheckedChange = { armor = it })
+                Spacer(Modifier.width(12.dp))
+                Text(if (armor) "Armored output (.asc)" else "Binary output (.gpg)")
+            }
+
+            Button(
+                onClick = {
+                    val uri = inputUri ?: return@Button
+                    if (!passphraseMatch) { resultMsg = "Passphrase tidak cocok"; return@Button }
+                    scope.launch {
+                        isLoading = true; outputPath = null
+                        val res = repo.encryptSymmetric(uri, context, passphrase, armor)
+                        isLoading = false
+                        if (res.success) outputPath = res.outputPath
+                        else resultMsg = "✗ ${res.errorMessage}"
+                    }
+                },
+                enabled = inputUri != null && passphraseMatch && !isLoading,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (isLoading) { CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp); Spacer(Modifier.width(8.dp)) }
+                Icon(Icons.Default.Lock, null); Spacer(Modifier.width(8.dp))
+                Text("Encrypt (Symmetric)", fontWeight = FontWeight.Bold)
+            }
+
+            outputPath?.let { SuccessCard("Encrypted file berhasil dibuat.", outputPath = it) }
+        }
+    }
+}
+
+// ── Success Card ──────────────────────────────────────────────────────────────
+
 @Composable
 fun SuccessCard(message: String, outputPath: String? = null) {
     val context = LocalContext.current
-
     val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { actResult ->
         val destUri = actResult.data?.data ?: return@rememberLauncherForActivityResult
         if (outputPath != null) FileShareHelper.copyToUri(context, outputPath, destUri)
     }
-
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
@@ -283,10 +349,7 @@ fun SuccessCard(message: String, outputPath: String? = null) {
             if (outputPath != null) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(
-                        onClick = {
-                            val intent = FileShareHelper.createSaveIntent(outputPath)
-                            saveLauncher.launch(intent)
-                        },
+                        onClick = { saveLauncher.launch(FileShareHelper.createSaveIntent(outputPath)) },
                         modifier = Modifier.weight(1f)
                     ) {
                         Icon(Icons.Default.Save, null, modifier = Modifier.size(16.dp))

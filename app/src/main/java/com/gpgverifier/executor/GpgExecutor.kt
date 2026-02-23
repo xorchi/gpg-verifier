@@ -499,6 +499,45 @@ class GpgExecutor(private val context: Context) {
         }
     }
 
+    fun exportKeyToKeyserver(fingerprint: String, keyserver: String): GpgOperationResult {
+        AppLogger.log("DEBUG: exportKeyToKeyserver() fp=$fingerprint ks=$keyserver")
+        return try {
+            // Export public key sebagai armored string
+            val exportResult = exportKey(fingerprint, armor = true, secret = false)
+            val armoredKey = when (exportResult) {
+                is GpgOperationResult.Success -> exportResult.message
+                is GpgOperationResult.Failure -> return exportResult
+            }
+
+            val base = keyserver.trimEnd('/').replace("hkps://", "https://").replace("hkp://", "http://")
+            val url  = "$base/pks/add"
+            AppLogger.log("DEBUG: Uploading ke $url")
+
+            val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+            conn.requestMethod = "POST"
+            conn.doOutput = true
+            conn.connectTimeout = 10000
+            conn.readTimeout = 15000
+            conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+            conn.setRequestProperty("User-Agent", "GPGVerifier/1.0")
+
+            val body = "keytext=" + java.net.URLEncoder.encode(armoredKey, "UTF-8")
+            conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+
+            val responseCode = conn.responseCode
+            AppLogger.log("DEBUG: Keyserver upload response: $responseCode")
+
+            if (responseCode in 200..299) {
+                GpgOperationResult.Success("Key berhasil diupload ke $keyserver")
+            } else {
+                GpgOperationResult.Failure("Keyserver error HTTP $responseCode")
+            }
+        } catch (e: Exception) {
+            AppLogger.log("ERROR exportKeyToKeyserver: ${e.message}")
+            GpgOperationResult.Failure(e.message ?: "Upload ke keyserver gagal")
+        }
+    }
+
     fun importKeyFromKeyserver(keyId: String, keyserver: String): GpgOperationResult {
         AppLogger.log("DEBUG: importKeyFromKeyserver() keyId=$keyId ks=$keyserver")
         return try {

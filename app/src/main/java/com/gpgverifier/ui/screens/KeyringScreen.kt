@@ -34,16 +34,18 @@ fun KeyringScreen(modifier: Modifier = Modifier) {
     val scope     = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
 
-    var tabIndex   by remember { mutableIntStateOf(0) }
-    val tabs        = listOf("Public Keys", "Secret Keys")
+    var tabIndex  by remember { mutableIntStateOf(0) }
+    val tabs       = listOf("Public Keys", "Secret Keys")
 
-    var pubKeys    by remember { mutableStateOf<List<GpgKey>>(emptyList()) }
-    var secKeys    by remember { mutableStateOf<List<GpgKey>>(emptyList()) }
-    var isLoading  by remember { mutableStateOf(false) }
-    var snackMsg   by remember { mutableStateOf<String?>(null) }
+    var pubKeys   by remember { mutableStateOf<List<GpgKey>>(emptyList()) }
+    var secKeys   by remember { mutableStateOf<List<GpgKey>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(false) }
+    var snackMsg  by remember { mutableStateOf<String?>(null) }
     var selectedKey by remember { mutableStateOf<GpgKey?>(null) }
-    var showKeyserverDialog by remember { mutableStateOf(false) }
-    var showGenDialog       by remember { mutableStateOf(false) }
+    var showKeyserverImportDialog by remember { mutableStateOf(false) }
+    var showKeyserverUploadDialog by remember { mutableStateOf(false) }
+    var uploadTargetKey by remember { mutableStateOf<GpgKey?>(null) }
+    var showGenDialog   by remember { mutableStateOf(false) }
     val snackState = remember { SnackbarHostState() }
 
     fun loadKeys() {
@@ -63,8 +65,8 @@ fun KeyringScreen(modifier: Modifier = Modifier) {
             scope.launch {
                 val r = repo.importKeyFromFile(it, context)
                 snackMsg = when (r) {
-                    is GpgOperationResult.Success -> "\u2713 ${r.message}"
-                    is GpgOperationResult.Failure -> "\u2717 ${r.error}"
+                    is GpgOperationResult.Success -> "✓ ${r.message}"
+                    is GpgOperationResult.Failure -> "✗ ${r.error}"
                 }
                 loadKeys()
             }
@@ -80,7 +82,7 @@ fun KeyringScreen(modifier: Modifier = Modifier) {
                     containerColor = MaterialTheme.colorScheme.surfaceVariant) {
                     Icon(Icons.Default.VpnKey, "Generate key")
                 }
-                SmallFloatingActionButton(onClick = { showKeyserverDialog = true },
+                SmallFloatingActionButton(onClick = { showKeyserverImportDialog = true },
                     containerColor = MaterialTheme.colorScheme.surfaceVariant) {
                     Icon(Icons.Default.CloudDownload, "Import from keyserver")
                 }
@@ -115,13 +117,13 @@ fun KeyringScreen(modifier: Modifier = Modifier) {
                         }
                         items(keys, key = { it.fingerprint }) { key ->
                             KeyCard(
-                                key      = key,
+                                key = key,
                                 onDelete = {
                                     scope.launch {
                                         val r = repo.deleteKey(key.fingerprint)
                                         snackMsg = when (r) {
                                             is GpgOperationResult.Success -> "Key deleted"
-                                            is GpgOperationResult.Failure -> "\u2717 ${r.error}"
+                                            is GpgOperationResult.Failure -> "✗ ${r.error}"
                                         }
                                         loadKeys()
                                     }
@@ -132,7 +134,7 @@ fun KeyringScreen(modifier: Modifier = Modifier) {
                                         if (r is GpgOperationResult.Success) {
                                             clipboard.setText(AnnotatedString(r.message))
                                             snackMsg = "Public key (armored) copied to clipboard"
-                                        } else snackMsg = "\u2717 Export failed"
+                                        } else snackMsg = "✗ Export failed"
                                     }
                                 },
                                 onExportSecret = if (key.type == KeyType.SECRET) ({
@@ -141,9 +143,13 @@ fun KeyringScreen(modifier: Modifier = Modifier) {
                                         if (r is GpgOperationResult.Success) {
                                             clipboard.setText(AnnotatedString(r.message))
                                             snackMsg = "Secret key (armored) copied to clipboard"
-                                        } else snackMsg = "\u2717 Export failed"
+                                        } else snackMsg = "✗ Export failed"
                                     }
                                 }) else null,
+                                onUploadToKeyserver = {
+                                    uploadTargetKey = key
+                                    showKeyserverUploadDialog = true
+                                },
                                 onTrust = { selectedKey = key }
                             )
                         }
@@ -154,17 +160,39 @@ fun KeyringScreen(modifier: Modifier = Modifier) {
         }
     }
 
-    if (showKeyserverDialog) {
-        KeyserverImportDialog(onDismiss = { showKeyserverDialog = false }) { keyId, ks ->
-            showKeyserverDialog = false
+    // Dialog import dari keyserver
+    if (showKeyserverImportDialog) {
+        KeyserverImportDialog(onDismiss = { showKeyserverImportDialog = false }) { keyId, ks ->
+            showKeyserverImportDialog = false
             scope.launch {
                 isLoading = true
                 val r = repo.importKeyFromKeyserver(keyId, ks)
                 snackMsg = when (r) {
-                    is GpgOperationResult.Success -> "\u2713 ${r.message}"
-                    is GpgOperationResult.Failure -> "\u2717 ${r.error}"
+                    is GpgOperationResult.Success -> "✓ ${r.message}"
+                    is GpgOperationResult.Failure -> "✗ ${r.error}"
                 }
                 loadKeys(); isLoading = false
+            }
+        }
+    }
+
+    // Dialog upload ke keyserver
+    if (showKeyserverUploadDialog && uploadTargetKey != null) {
+        KeyserverUploadDialog(
+            key = uploadTargetKey!!,
+            onDismiss = { showKeyserverUploadDialog = false; uploadTargetKey = null }
+        ) { ks ->
+            showKeyserverUploadDialog = false
+            val key = uploadTargetKey!!
+            uploadTargetKey = null
+            scope.launch {
+                isLoading = true
+                val r = repo.exportKeyToKeyserver(key.fingerprint, ks)
+                snackMsg = when (r) {
+                    is GpgOperationResult.Success -> "✓ ${r.message}"
+                    is GpgOperationResult.Failure -> "✗ ${r.error}"
+                }
+                isLoading = false
             }
         }
     }
@@ -176,8 +204,8 @@ fun KeyringScreen(modifier: Modifier = Modifier) {
                 isLoading = true
                 val r = repo.generateKey(params)
                 snackMsg = when (r) {
-                    is GpgOperationResult.Success -> "\u2713 ${r.message}"
-                    is GpgOperationResult.Failure -> "\u2717 ${r.error}"
+                    is GpgOperationResult.Success -> "✓ ${r.message}"
+                    is GpgOperationResult.Failure -> "✗ ${r.error}"
                 }
                 loadKeys(); isLoading = false
             }
@@ -190,8 +218,8 @@ fun KeyringScreen(modifier: Modifier = Modifier) {
             scope.launch {
                 val r = repo.trustKey(key.fingerprint, level)
                 snackMsg = when (r) {
-                    is GpgOperationResult.Success -> "\u2713 Trust level updated"
-                    is GpgOperationResult.Failure -> "\u2717 ${r.error}"
+                    is GpgOperationResult.Success -> "✓ Trust level updated"
+                    is GpgOperationResult.Failure -> "✗ ${r.error}"
                 }
                 loadKeys()
             }
@@ -207,6 +235,7 @@ fun KeyCard(
     onDelete: () -> Unit,
     onExportPublic: () -> Unit,
     onExportSecret: (() -> Unit)?,
+    onUploadToKeyserver: () -> Unit,
     onTrust: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -222,8 +251,7 @@ fun KeyCard(
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(if (key.type == KeyType.SECRET) Icons.Default.VpnKey else Icons.Default.Key,
-                    null, tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp))
+                    null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(key.uids.firstOrNull() ?: key.keyId,
@@ -232,9 +260,8 @@ fun KeyCard(
                         fontFamily = FontFamily.Monospace,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
                 }
-                AssistChip(onClick = {}, label = {
-                    Text(key.trustLevel, fontSize = 10.sp)
-                }, colors = AssistChipDefaults.assistChipColors(labelColor = trustColor))
+                AssistChip(onClick = {}, label = { Text(key.trustLevel, fontSize = 10.sp) },
+                    colors = AssistChipDefaults.assistChipColors(labelColor = trustColor))
                 IconButton(onClick = { expanded = !expanded }) {
                     Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null)
                 }
@@ -262,6 +289,12 @@ fun KeyCard(
                         Icon(Icons.Default.Share, null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp)); Text("Export Pub")
                     }
+                }
+                Spacer(Modifier.height(4.dp))
+                // Tombol upload ke keyserver
+                OutlinedButton(onClick = onUploadToKeyserver, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.CloudUpload, null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp)); Text("Upload ke Keyserver")
                 }
                 if (onExportSecret != null) {
                     Spacer(Modifier.height(4.dp))
@@ -303,7 +336,7 @@ fun KeyCard(
 @Composable
 fun KeyserverImportDialog(onDismiss: () -> Unit, onImport: (String, String) -> Unit) {
     var keyId     by remember { mutableStateOf("") }
-    var keyserver by remember { mutableStateOf("hkps://keys.openpgp.org") }
+    var keyserver by remember { mutableStateOf("hkps://keyserver.ubuntu.com") }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Import from Keyserver") },
@@ -321,6 +354,29 @@ fun KeyserverImportDialog(onDismiss: () -> Unit, onImport: (String, String) -> U
         confirmButton = {
             TextButton(onClick = { if (keyId.isNotBlank()) onImport(keyId.trim(), keyserver.trim()) },
                 enabled = keyId.isNotBlank()) { Text("Import") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
+}
+
+@Composable
+fun KeyserverUploadDialog(key: GpgKey, onDismiss: () -> Unit, onUpload: (String) -> Unit) {
+    var keyserver by remember { mutableStateOf("hkps://keyserver.ubuntu.com") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Upload ke Keyserver") },
+        text  = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Key: ${key.uids.firstOrNull() ?: key.keyId}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                OutlinedTextField(value = keyserver, onValueChange = { keyserver = it },
+                    label = { Text("Keyserver") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth())
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onUpload(keyserver.trim()) }) { Text("Upload") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
@@ -352,11 +408,9 @@ fun GenerateKeyDialog(onDismiss: () -> Unit, onGenerate: (KeyGenParams) -> Unit)
                     modifier = Modifier.fillMaxWidth())
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(value = keySize, onValueChange = { keySize = it },
-                        label = { Text("Key Size") }, singleLine = true,
-                        modifier = Modifier.weight(1f))
+                        label = { Text("Key Size") }, singleLine = true, modifier = Modifier.weight(1f))
                     OutlinedTextField(value = expiry, onValueChange = { expiry = it },
-                        label = { Text("Expiry (days, 0=never)") }, singleLine = true,
-                        modifier = Modifier.weight(1f))
+                        label = { Text("Expiry (days, 0=never)") }, singleLine = true, modifier = Modifier.weight(1f))
                 }
             }
         },
@@ -413,10 +467,11 @@ fun EmptyKeyringMessage() {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(Icons.Default.Key, null, modifier = Modifier.size(48.dp),
                 tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f))
-            Text("No keys in keyring", style = MaterialTheme.typography.titleMedium,
+            Text("No keys found", style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
-            Text("Tap + to import a key", style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f))
+            Text("Import or generate a key to get started",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
         }
     }
 }

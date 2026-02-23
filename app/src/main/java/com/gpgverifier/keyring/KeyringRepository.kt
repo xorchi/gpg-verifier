@@ -109,6 +109,9 @@ class KeyringRepository(context: Context) {
     suspend fun exportKey(fingerprint: String, armor: Boolean = true, secret: Boolean = false): GpgOperationResult =
         withContext(Dispatchers.IO) { executor.exportKey(fingerprint, armor, secret) }
 
+    suspend fun exportKeyToKeyserver(fingerprint: String, keyserver: String): GpgOperationResult =
+        withContext(Dispatchers.IO) { executor.exportKeyToKeyserver(fingerprint, keyserver) }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
     private fun uriToTempFile(uri: Uri, context: Context, prefix: String): File {
         val temp = File.createTempFile(prefix, ".tmp", cacheDir)

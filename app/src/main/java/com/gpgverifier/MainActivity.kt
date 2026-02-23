@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.LockOpen
@@ -28,6 +29,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.gpgverifier.ui.screens.DecryptScreen
@@ -36,6 +38,8 @@ import com.gpgverifier.ui.screens.SignEncryptScreen
 import com.gpgverifier.ui.screens.VerifyScreen
 import com.gpgverifier.ui.theme.GPGVerifierTheme
 import com.gpgverifier.util.AppLogger
+import kotlinx.coroutines.launch
+import java.io.File
 
 data class NavItem(
     val label: String,
@@ -44,21 +48,21 @@ data class NavItem(
 )
 
 val navItems = listOf(
-    NavItem("Verify",   Icons.Filled.Shield,   Icons.Outlined.Shield),
-    NavItem("Sign",     Icons.Filled.Lock,     Icons.Outlined.Lock),
-    NavItem("Decrypt",  Icons.Filled.LockOpen, Icons.Outlined.LockOpen),
-    NavItem("Keys",     Icons.Filled.Key,      Icons.Outlined.Key)
+    NavItem("Verify",  Icons.Filled.Shield,   Icons.Outlined.Shield),
+    NavItem("Sign",    Icons.Filled.Lock,     Icons.Outlined.Lock),
+    NavItem("Decrypt", Icons.Filled.LockOpen, Icons.Outlined.LockOpen),
+    NavItem("Keys",    Icons.Filled.Key,      Icons.Outlined.Key)
 )
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (Security.getProvider("BC") == null) Security.addProvider(BouncyCastleProvider())
-        AppLogger.init(filesDir) // inisialisasi logger ke storage privat
+        AppLogger.init(filesDir)
         AppLogger.log("INFO: App started - onCreate()")
         checkAndRequestPermissions()
         enableEdgeToEdge()
-        setContent { GPGVerifierTheme { MainScaffold() } }
+        setContent { GPGVerifierTheme { MainScaffold(filesDir) } }
     }
 
     private fun checkAndRequestPermissions() {
@@ -91,15 +95,42 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScaffold() {
+fun MainScaffold(filesDir: File) {
     var selectedTab by remember { mutableIntStateOf(0) }
+    val snackState  = remember { SnackbarHostState() }
+    val scope       = rememberCoroutineScope()
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        snackbarHost = { SnackbarHost(snackState) },
         topBar = {
             TopAppBar(
                 title = { Text("GPG Verifier") },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface)
+                    containerColor = MaterialTheme.colorScheme.surface),
+                actions = {
+                    // Tombol export log ke /sdcard/Download/
+                    IconButton(onClick = {
+                        scope.launch {
+                            try {
+                                val src = File(filesDir, "logs/app.log")
+                                val dst = File("/sdcard/Download/gpgverifier-app.log")
+                                if (src.exists()) {
+                                    src.copyTo(dst, overwrite = true)
+                                    AppLogger.log("INFO: Log diekspor ke ${dst.absolutePath}")
+                                    snackState.showSnackbar("✓ Log diekspor ke Download/gpgverifier-app.log")
+                                } else {
+                                    snackState.showSnackbar("✗ File log belum ada")
+                                }
+                            } catch (e: Exception) {
+                                AppLogger.log("ERROR: Export log gagal: ${e.message}")
+                                snackState.showSnackbar("✗ Export log gagal: ${e.message}")
+                            }
+                        }
+                    }) {
+                        Icon(Icons.Default.BugReport, contentDescription = "Export Log")
+                    }
+                }
             )
         },
         bottomBar = {
