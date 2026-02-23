@@ -1,5 +1,8 @@
 package com.gpgverifier
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -14,15 +17,17 @@ import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.gpgverifier.ui.screens.KeyringScreen
 import com.gpgverifier.ui.screens.VerifyScreen
 import com.gpgverifier.ui.theme.GPGVerifierTheme
+import com.gpgverifier.util.AppLogger // Import logger yang lu buat tadi
 
 data class NavItem(
     val label: String,
-    val selectedIcon: ImageVector,
-    val unselectedIcon: ImageVector
+    val selectedIcon: androidx.compose.ui.graphics.vector.ImageVector,
+    val unselectedIcon: androidx.compose.ui.graphics.vector.ImageVector
 )
 
 val navItems = listOf(
@@ -33,10 +38,46 @@ val navItems = listOf(
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Cek izin storage pas aplikasi dibuka biar bisa nulis log
+        checkAndRequestPermissions()
+        
         enableEdgeToEdge()
         setContent {
             GPGVerifierTheme {
                 MainScaffold()
+            }
+        }
+    }
+
+    private fun checkAndRequestPermissions() {
+        val permissions = mutableListOf<String>()
+        
+        // Tambahin izin baca/tulis storage ke list kalau belum di-allow
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) 
+            != PackageManager.PERMISSION_GRANTED) {
+            permissions.add(Manifest.permission.READ_EXTERNAL_STORAGE)
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) 
+            != PackageManager.PERMISSION_GRANTED) {
+            permissions.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }
+
+        if (permissions.isNotEmpty()) {
+            ActivityCompat.requestPermissions(this, permissions.toTypedArray(), 100)
+        } else {
+            AppLogger.log("Aplikasi dibuka - Izin storage sudah ada.")
+        }
+    }
+
+    // Callback pas user klik Allow/Deny di pop-up
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 100) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                AppLogger.log("Izin diberikan oleh user.")
+            } else {
+                AppLogger.log("Izin ditolak oleh user. Logging mungkin tidak akan bekerja.")
             }
         }
     }
