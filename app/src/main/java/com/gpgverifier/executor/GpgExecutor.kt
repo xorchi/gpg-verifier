@@ -72,6 +72,7 @@ class GpgExecutor(private val context: Context) {
                 "--edit-key", fingerprint
             )
             val process = ProcessBuilder(command)
+                .environment().also { it["LD_LIBRARY_PATH"] = context.applicationInfo.nativeLibraryDir }
                 .redirectErrorStream(true)
                 .start()
             process.outputStream.bufferedWriter().use { it.write("trust\n$trustLevel\ny\nquit\n") }
@@ -204,6 +205,7 @@ class GpgExecutor(private val context: Context) {
             command.addAll(args)
             AppLogger.log("DEBUG: Executing: ${command.joinToString(" ")}")
             val process = ProcessBuilder(command)
+                .environment().also { it["LD_LIBRARY_PATH"] = context.applicationInfo.nativeLibraryDir }
                 .redirectErrorStream(true)
                 .start()
             val output = process.inputStream.bufferedReader().readText()

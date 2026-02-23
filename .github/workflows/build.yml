@@ -98,6 +98,21 @@ jobs:
           cp "$GPG_BIN" $GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a/libgpg.so
           chmod +x $GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a/libgpg.so
 
+          # Download shared library dependencies
+          JNILIBS=$GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a
+          for PKG_NAME in "zlib" "bzip2" "sqlite" "libgcrypt" "readline" "libassuan" "npth" "libgpg-error" "libandroid-support" "ncurses"; do
+            PKG_URL=$(echo "$PACKAGES" \
+              | awk "/^Package: ${PKG_NAME}$/{found=1} found && /^Filename:/{print $2; exit}")
+            [ -z "$PKG_URL" ] && echo "SKIP: $PKG_NAME not found" && continue
+            curl -fsSL "https://packages.termux.dev/apt/termux-main/$PKG_URL" -o /tmp/${PKG_NAME}.deb
+            cd /tmp && ar x ${PKG_NAME}.deb
+            tar -xf data.tar.* -C /tmp/ 2>/dev/null
+            find /tmp/data -name "*.so*" -type f | while read lib; do
+              cp "$lib" "$JNILIBS/$(basename $lib)"
+            done
+            rm -rf /tmp/data /tmp/data.tar.* /tmp/control.tar.* /tmp/debian-binary
+          done
+
           file $GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a/libgpg.so
           ls -lh $GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a/libgpg.so
 
