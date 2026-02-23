@@ -167,13 +167,29 @@ class GpgExecutor(private val context: Context) {
                     outFile.outputStream().use { sigGen.generate().encode(it) }
                 }
                 SignMode.CLEARSIGN -> {
-                    ArmoredOutputStream(outFile.outputStream()).use { out ->
-                        val content = dataFile.readBytes()
-                        out.write("-----BEGIN PGP SIGNED MESSAGE-----\nHash: SHA256\n\n".toByteArray())
-                        out.write(content)
-                        sigGen.update(content)
-                        out.write("\n".toByteArray())
-                        sigGen.generate().encode(out)
+                    // ClearSign TIDAK boleh pakai ArmoredOutputStream untuk header+body
+                    // Format: plain text header → plain text body → armored signature block
+                    val content = dataFile.readBytes()
+                    val contentStr = content.toString(Charsets.UTF_8)
+                    // Canonical text untuk signing: trailing whitespace di-strip per baris, CRLF line ending
+                    val canonical = contentStr.lines()
+                        .joinToString("\r\n") { it.trimEnd() }
+                    sigGen.update(canonical.toByteArray(Charsets.UTF_8))
+                    val sig = sigGen.generate()
+
+                    // Tulis signature block ke ByteArray via ArmoredOutputStream
+                    val sigBout = ByteArrayOutputStream()
+                    ArmoredOutputStream(sigBout).use { sig.encode(it) }
+                    val sigArmored = sigBout.toString(Charsets.UTF_8)
+
+                    // Tulis seluruh clearsign file sebagai plain text
+                    outFile.bufferedWriter(Charsets.UTF_8).use { w ->
+                        w.write("-----BEGIN PGP SIGNED MESSAGE-----\n")
+                        w.write("Hash: SHA256\n")
+                        w.write("\n")
+                        w.write(contentStr)
+                        if (!contentStr.endsWith("\n")) w.write("\n")
+                        w.write(sigArmored)
                     }
                 }
                 SignMode.NORMAL_ARMOR -> {
