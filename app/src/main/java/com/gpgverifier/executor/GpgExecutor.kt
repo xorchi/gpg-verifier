@@ -397,20 +397,23 @@ class GpgExecutor(private val context: Context) {
         AppLogger.log("DEBUG: generateKey() name=${params.name} email=${params.email}")
         return try {
             val now = Date()
-            val digestCalcProvider = org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider()
-            val sha1Calc = digestCalcProvider.get(HashAlgorithmTags.SHA1)
+            val bcDigestProvider = org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider()
+            val sha1Calc = bcDigestProvider.get(HashAlgorithmTags.SHA1)
 
-            val kpgRSA = java.security.KeyPairGenerator.getInstance("RSA")
-            val primaryKpg = JcaPGPKeyPair(
-                PGPPublicKey.RSA_SIGN,
-                kpgRSA.apply { initialize(params.keySize, SecureRandom()) }.generateKeyPair(),
-                now
+            // Gunakan RSA key generator via BouncyCastle langsung, bukan JCA
+            val rsaKeyGen = org.bouncycastle.crypto.generators.RSAKeyPairGenerator()
+            rsaKeyGen.init(org.bouncycastle.crypto.params.RSAKeyGenerationParameters(
+                java.math.BigInteger.valueOf(65537),
+                SecureRandom(),
+                params.keySize,
+                12
+            ))
+
+            val primaryKpg = org.bouncycastle.openpgp.operator.bc.BcPGPKeyPair(
+                PGPPublicKey.RSA_SIGN, rsaKeyGen.generateKeyPair(), now
             )
-
-            val encryptKpg = JcaPGPKeyPair(
-                PGPPublicKey.RSA_ENCRYPT,
-                kpgRSA.apply { initialize(params.keySize, SecureRandom()) }.generateKeyPair(),
-                now
+            val encryptKpg = org.bouncycastle.openpgp.operator.bc.BcPGPKeyPair(
+                PGPPublicKey.RSA_ENCRYPT, rsaKeyGen.generateKeyPair(), now
             )
 
             val uid = buildString {
