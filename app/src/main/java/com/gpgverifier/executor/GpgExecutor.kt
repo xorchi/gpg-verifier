@@ -197,7 +197,7 @@ class GpgExecutor(private val context: Context) {
                     .setSecureRandom(SecureRandom())
                     .setProvider("BC")
             ).apply {
-                addMethod(JcePBESKeyEncryptionMethodGenerator(passphrase.toCharArray())
+                addMethod(JcePBEKeyEncryptionMethodGenerator(passphrase.toCharArray())
                     .setProvider("BC"))
             }
 
