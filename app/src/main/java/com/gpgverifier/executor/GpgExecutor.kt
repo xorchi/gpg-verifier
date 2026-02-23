@@ -6,216 +6,306 @@ import com.gpgverifier.model.GpgOperationResult
 import com.gpgverifier.model.KeyType
 import com.gpgverifier.model.VerificationResult
 import com.gpgverifier.util.AppLogger
+import org.bouncycastle.openpgp.*
+import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator
+import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentVerifierBuilderProvider
 import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.io.InputStream
+import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.*
 
 class GpgExecutor(private val context: Context) {
 
-    private val gpgBinary: File by lazy {
-        val dest = File(context.applicationInfo.nativeLibraryDir, "libgpg.so")
-        AppLogger.log("DEBUG: GPG path: ${dest.absolutePath}, exists: ${dest.exists()}, executable: ${dest.canExecute()}")
-        dest
+    private val keyringDir: File by lazy {
+        File(context.filesDir, "keyring").also { it.mkdirs() }
     }
 
-    private val gpgDir: File by lazy {
-        val dir = File(context.filesDir, ".gnupg")
-        if (!dir.exists()) dir.mkdirs()
-        dir.setReadable(true, true)
-        dir.setWritable(true, true)
-        dir.setExecutable(true, true)
-        dir
-    }
+    private val publicKeyringFile: File get() = File(keyringDir, "pubring.pgp")
+    private val secretKeyringFile: File get() = File(keyringDir, "secring.pgp")
+    private val trustFile: File get() = File(keyringDir, "trustdb.txt")
+
+    // ── Verify ───────────────────────────────────────────────────────────────
 
     fun verify(dataFile: File, sigFile: File): VerificationResult {
         AppLogger.log("DEBUG: verify() dipanggil")
-        val output = runGpg("--verify", sigFile.absolutePath, dataFile.absolutePath)
-        AppLogger.log("DEBUG: verify output: $output")
-        return parseVerifyOutput(output)
+        return try {
+            val sigCollection = loadSignatures(sigFile.inputStream())
+            if (sigCollection.isEmpty()) {
+                return VerificationResult(false, "", "", "", "", "File bukan signature GPG yang valid")
+            }
+
+            val pubRings = loadPublicKeyring() ?: return VerificationResult(
+                false, "", "", "", "", "Keyring kosong — import public key terlebih dahulu"
+            )
+
+            var result: VerificationResult? = null
+            outer@ for (sig in sigCollection) {
+                val keyId = sig.keyID
+                val pubKey = findPublicKey(pubRings, keyId) ?: continue
+                sig.init(JcaPGPContentVerifierBuilderProvider(), pubKey)
+                dataFile.inputStream().use { sig.update(it.readBytes()) }
+                val valid = sig.verify()
+                val fingerprint = bytesToHex(pubKey.fingerprint)
+                val uid = (pubKey.userIDs.asSequence().firstOrNull() ?: "Unknown") as String
+                val ts = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                    .format(sig.creationTime)
+                val trust = getTrustLevel(fingerprint)
+                result = VerificationResult(
+                    isValid = valid,
+                    signedBy = uid,
+                    fingerprint = fingerprint,
+                    timestamp = ts,
+                    trustLevel = trust,
+                    rawOutput = if (valid) "Good signature from \"$uid\"" else "BAD signature",
+                    errorMessage = if (!valid) "Signature tidak valid" else null
+                )
+                break@outer
+            }
+
+            result ?: VerificationResult(false, "", "", "", "", "No public key — key ID tidak ditemukan di keyring")
+        } catch (e: Exception) {
+            AppLogger.log("ERROR verify: ${e.message}")
+            VerificationResult(false, "", "", "", "", e.message ?: "Verifikasi gagal")
+        }
     }
+
+    // ── List Keys ────────────────────────────────────────────────────────────
 
     fun listKeys(): List<GpgKey> {
         AppLogger.log("DEBUG: listKeys() dipanggil")
-        val output = runGpg("--list-keys", "--with-colons", "--fingerprint")
-        return parseKeyColons(output, KeyType.PUBLIC)
+        val rings = loadPublicKeyring() ?: return emptyList()
+        val keys = mutableListOf<GpgKey>()
+        for (ring in rings) {
+            val pub = ring.publicKey
+            val fingerprint = bytesToHex(pub.fingerprint)
+            keys.add(GpgKey(
+                keyId = java.lang.Long.toHexString(pub.keyID).uppercase(),
+                fingerprint = fingerprint,
+                uids = pub.userIDs.asSequence().map { it as String }.toList(),
+                createdAt = pub.creationTime.time.toString(),
+                expiresAt = if (pub.validSeconds > 0)
+                    (pub.creationTime.time + pub.validSeconds * 1000).toString() else null,
+                trustLevel = getTrustLevel(fingerprint),
+                type = KeyType.PUBLIC
+            ))
+        }
+        return keys
     }
 
     fun listSecretKeys(): List<GpgKey> {
-        val output = runGpg("--list-secret-keys", "--with-colons", "--fingerprint")
-        return parseKeyColons(output, KeyType.SECRET)
+        val rings = loadSecretKeyring() ?: return emptyList()
+        val keys = mutableListOf<GpgKey>()
+        for (ring in rings) {
+            val sec = ring.secretKey
+            val fingerprint = bytesToHex(sec.publicKey.fingerprint)
+            keys.add(GpgKey(
+                keyId = java.lang.Long.toHexString(sec.keyID).uppercase(),
+                fingerprint = fingerprint,
+                uids = sec.userIDs.asSequence().map { it as String }.toList(),
+                createdAt = sec.publicKey.creationTime.time.toString(),
+                expiresAt = if (sec.publicKey.validSeconds > 0)
+                    (sec.publicKey.creationTime.time + sec.publicKey.validSeconds * 1000).toString() else null,
+                trustLevel = getTrustLevel(fingerprint),
+                type = KeyType.SECRET
+            ))
+        }
+        return keys
     }
+
+    // ── Import Key ───────────────────────────────────────────────────────────
 
     fun importKey(keyFile: File): GpgOperationResult {
         AppLogger.log("DEBUG: importKey() dari ${keyFile.absolutePath}")
-        val output = runGpg("--import", keyFile.absolutePath)
-        return if (output.contains("imported") || output.contains("unchanged"))
-            GpgOperationResult.Success("Key berhasil diimport")
-        else
-            GpgOperationResult.Failure(output.ifBlank { "Import gagal" })
+        return try {
+            val imported = mergePublicKeys(keyFile.inputStream())
+            GpgOperationResult.Success("$imported key berhasil diimport")
+        } catch (e: Exception) {
+            AppLogger.log("ERROR importKey: ${e.message}")
+            GpgOperationResult.Failure(e.message ?: "Import gagal")
+        }
     }
 
     fun importKeyFromKeyserver(keyId: String, keyserver: String): GpgOperationResult {
         AppLogger.log("DEBUG: importKeyFromKeyserver() keyId=$keyId ks=$keyserver")
-        val output = runGpg("--keyserver", keyserver, "--recv-keys", keyId)
-        return if (output.contains("imported") || output.contains("unchanged"))
-            GpgOperationResult.Success("Key $keyId berhasil diimport dari $keyserver")
-        else
-            GpgOperationResult.Failure(output.ifBlank { "Import dari keyserver gagal" })
+        return try {
+            val base = keyserver.trimEnd('/')
+            val url = "$base/pks/lookup?op=get&search=0x$keyId&options=mr"
+            AppLogger.log("DEBUG: Fetching $url")
+            val stream = URL(url).openStream()
+            val imported = mergePublicKeys(stream)
+            GpgOperationResult.Success("$imported key berhasil diimport dari $keyserver")
+        } catch (e: Exception) {
+            AppLogger.log("ERROR importKeyFromKeyserver: ${e.message}")
+            GpgOperationResult.Failure(e.message ?: "Import dari keyserver gagal")
+        }
     }
+
+    // ── Trust ────────────────────────────────────────────────────────────────
 
     fun trustKey(fingerprint: String, trustLevel: Int): GpgOperationResult {
         AppLogger.log("DEBUG: trustKey() fp=$fingerprint level=$trustLevel")
         return try {
-            val command = listOf(
-                gpgBinary.absolutePath,
-                "--homedir", gpgDir.absolutePath,
-                "--batch", "--yes",
-                "--command-fd", "0",
-                "--edit-key", fingerprint
-            )
-            val process = ProcessBuilder(command)
-                .environment().also { it["LD_LIBRARY_PATH"] = context.applicationInfo.nativeLibraryDir }
-                .redirectErrorStream(true)
-                .start()
-            process.outputStream.bufferedWriter().use { it.write("trust\n$trustLevel\ny\nquit\n") }
-            val output = process.inputStream.bufferedReader().readText()
-            process.waitFor()
-            AppLogger.log("DEBUG: trustKey output: $output")
+            val lines = if (trustFile.exists())
+                trustFile.readLines().filter { !it.startsWith(fingerprint) }.toMutableList()
+            else mutableListOf()
+            lines.add("$fingerprint:$trustLevel")
+            trustFile.writeText(lines.joinToString("\n"))
             GpgOperationResult.Success("Trust level diset ke $trustLevel")
         } catch (e: Exception) {
-            AppLogger.log("ERROR trustKey: ${e.message}")
             GpgOperationResult.Failure(e.message ?: "Gagal set trust")
         }
     }
 
+    // ── Delete ───────────────────────────────────────────────────────────────
+
     fun deleteKey(fingerprint: String): GpgOperationResult {
         AppLogger.log("DEBUG: deleteKey() fp=$fingerprint")
-        val output = runGpg("--batch", "--yes", "--delete-key", fingerprint)
-        return if (output.isBlank() || output.contains("ok", ignoreCase = true))
+        return try {
+            val rings = loadPublicKeyring()?.filter {
+                bytesToHex(it.publicKey.fingerprint) != fingerprint.uppercase()
+            } ?: emptyList()
+            savePublicKeyring(rings)
+            // Hapus trust entry
+            if (trustFile.exists()) {
+                val lines = trustFile.readLines().filter { !it.startsWith(fingerprint) }
+                trustFile.writeText(lines.joinToString("\n"))
+            }
             GpgOperationResult.Success("Key dihapus")
-        else
-            GpgOperationResult.Failure(output)
+        } catch (e: Exception) {
+            GpgOperationResult.Failure(e.message ?: "Gagal hapus key")
+        }
     }
+
+    // ── Export ───────────────────────────────────────────────────────────────
 
     fun exportKey(fingerprint: String): GpgOperationResult {
         AppLogger.log("DEBUG: exportKey() fp=$fingerprint")
-        val output = runGpg("--armor", "--export", fingerprint)
-        return if (output.contains("BEGIN PGP PUBLIC KEY BLOCK"))
-            GpgOperationResult.Success(output)
-        else
-            GpgOperationResult.Failure("Export gagal atau key tidak ditemukan")
-    }
-
-    private fun parseVerifyOutput(output: String): VerificationResult {
-        val isValid = output.contains("Good signature")
-        if (!isValid) {
-            val errorMsg = when {
-                output.contains("No public key") -> "Public key tidak ditemukan di keyring"
-                output.contains("BAD signature") -> "Signature tidak valid"
-                output.contains("no valid OpenPGP") -> "File bukan signature GPG yang valid"
-                output.contains("Permission denied") -> "Permission denied saat eksekusi GPG"
-                else -> output.lines().firstOrNull { it.isNotBlank() } ?: "Verifikasi gagal"
-            }
-            return VerificationResult(
-                isValid = false,
-                signedBy = "",
-                fingerprint = "",
-                timestamp = "",
-                trustLevel = "",
-                rawOutput = output,
-                errorMessage = errorMsg
-            )
-        }
-        return VerificationResult(
-            isValid = true,
-            signedBy = Regex("Good signature from \"(.+?)\"").find(output)
-                ?.groupValues?.get(1) ?: "Unknown",
-            fingerprint = Regex("Primary key fingerprint:(.+)").find(output)
-                ?.groupValues?.get(1)?.trim()?.replace(" ", "") ?: "",
-            timestamp = Regex("Signature made (.+?) using").find(output)
-                ?.groupValues?.get(1)?.trim() ?: "",
-            trustLevel = when {
-                output.contains("fully trusted") -> "Full"
-                output.contains("marginally trusted") -> "Marginal"
-                output.contains("undefined trust") -> "Undefined"
-                else -> "Unknown"
-            },
-            rawOutput = output
-        )
-    }
-
-    private fun parseKeyColons(output: String, defaultType: KeyType): List<GpgKey> {
-        val keys = mutableListOf<GpgKey>()
-        var currentFingerprint = ""
-        var currentKeyId = ""
-        var currentCreatedAt = ""
-        var currentExpiresAt: String? = null
-        val currentUids = mutableListOf<String>()
-        var currentTrust = ""
-        var currentType = defaultType
-
-        fun flush() {
-            if (currentFingerprint.isNotBlank()) {
-                keys.add(GpgKey(
-                    keyId = currentKeyId,
-                    fingerprint = currentFingerprint,
-                    uids = currentUids.toList(),
-                    createdAt = currentCreatedAt,
-                    expiresAt = currentExpiresAt,
-                    trustLevel = currentTrust,
-                    type = currentType
-                ))
-            }
-        }
-
-        output.lines().forEach { line ->
-            val f = line.split(":")
-            when (f.getOrNull(0)) {
-                "pub" -> {
-                    flush()
-                    currentFingerprint = ""; currentUids.clear()
-                    currentKeyId = f.getOrNull(4) ?: ""
-                    currentCreatedAt = f.getOrNull(5) ?: ""
-                    currentExpiresAt = f.getOrNull(6)?.takeIf { it.isNotBlank() }
-                    currentTrust = f.getOrNull(1) ?: ""
-                    currentType = KeyType.PUBLIC
-                }
-                "sec" -> {
-                    flush()
-                    currentFingerprint = ""; currentUids.clear()
-                    currentKeyId = f.getOrNull(4) ?: ""
-                    currentCreatedAt = f.getOrNull(5) ?: ""
-                    currentExpiresAt = f.getOrNull(6)?.takeIf { it.isNotBlank() }
-                    currentTrust = f.getOrNull(1) ?: ""
-                    currentType = KeyType.SECRET
-                }
-                "fpr" -> currentFingerprint = f.getOrNull(9) ?: ""
-                "uid" -> f.getOrNull(9)?.takeIf { it.isNotBlank() }?.let { currentUids.add(it) }
-            }
-        }
-        flush()
-        return keys
-    }
-
-    private fun runGpg(vararg args: String): String {
         return try {
-            val command = mutableListOf(
-                gpgBinary.absolutePath,
-                "--homedir", gpgDir.absolutePath,
-                "--no-tty", "--batch"
-            )
-            command.addAll(args)
-            AppLogger.log("DEBUG: Executing: ${command.joinToString(" ")}")
-            val process = ProcessBuilder(command)
-                .environment().also { it["LD_LIBRARY_PATH"] = context.applicationInfo.nativeLibraryDir }
-                .redirectErrorStream(true)
-                .start()
-            val output = process.inputStream.bufferedReader().readText()
-            val exitCode = process.waitFor()
-            AppLogger.log("DEBUG: Exit=$exitCode output=$output")
-            output
+            val ring = loadPublicKeyring()?.firstOrNull {
+                bytesToHex(it.publicKey.fingerprint) == fingerprint.uppercase()
+            } ?: return GpgOperationResult.Failure("Key tidak ditemukan")
+            val out = java.io.ByteArrayOutputStream()
+            val armored = org.bouncycastle.bcpg.ArmoredOutputStream(out)
+            ring.encode(armored)
+            armored.close()
+            GpgOperationResult.Success(out.toString())
         } catch (e: Exception) {
-            val err = "ERROR runGpg: ${e.message}"
-            AppLogger.log(err)
-            err
+            GpgOperationResult.Failure(e.message ?: "Export gagal")
         }
     }
+
+    // ── Private Helpers ──────────────────────────────────────────────────────
+
+    private fun loadPublicKeyring(): List<PGPPublicKeyRing>? {
+        if (!publicKeyringFile.exists()) return null
+        return try {
+            val rings = mutableListOf<PGPPublicKeyRing>()
+            val col = PGPPublicKeyRingCollection(
+                FileInputStream(publicKeyringFile),
+                JcaKeyFingerprintCalculator()
+            )
+            col.keyRings.forEach { rings.add(it) }
+            rings
+        } catch (e: Exception) {
+            AppLogger.log("ERROR loadPublicKeyring: ${e.message}")
+            null
+        }
+    }
+
+    private fun loadSecretKeyring(): List<PGPSecretKeyRing>? {
+        if (!secretKeyringFile.exists()) return null
+        return try {
+            val rings = mutableListOf<PGPSecretKeyRing>()
+            val col = PGPSecretKeyRingCollection(
+                FileInputStream(secretKeyringFile),
+                JcaKeyFingerprintCalculator()
+            )
+            col.keyRings.forEach { rings.add(it) }
+            rings
+        } catch (e: Exception) {
+            AppLogger.log("ERROR loadSecretKeyring: ${e.message}")
+            null
+        }
+    }
+
+    private fun savePublicKeyring(rings: List<PGPPublicKeyRing>) {
+        val col = PGPPublicKeyRingCollection(rings)
+        FileOutputStream(publicKeyringFile).use { col.encode(it) }
+    }
+
+    private fun mergePublicKeys(input: InputStream): Int {
+        val decoded: InputStream = try {
+            PGPUtil.getDecoderStream(input)
+        } catch (e: Exception) { input }
+
+        val incoming = mutableListOf<PGPPublicKeyRing>()
+        try {
+            val col = PGPPublicKeyRingCollection(decoded, JcaKeyFingerprintCalculator())
+            col.keyRings.forEach { incoming.add(it) }
+        } catch (e: Exception) {
+            AppLogger.log("ERROR mergePublicKeys parsing: ${e.message}")
+            throw e
+        }
+
+        val existing = loadPublicKeyring()?.associateBy {
+            bytesToHex(it.publicKey.fingerprint)
+        }?.toMutableMap() ?: mutableMapOf()
+
+        var count = 0
+        for (ring in incoming) {
+            val fp = bytesToHex(ring.publicKey.fingerprint)
+            if (!existing.containsKey(fp)) count++
+            existing[fp] = ring
+        }
+        savePublicKeyring(existing.values.toList())
+        return count
+    }
+
+    private fun loadSignatures(input: InputStream): List<PGPSignature> {
+        val sigs = mutableListOf<PGPSignature>()
+        try {
+            val decoded = PGPUtil.getDecoderStream(input)
+            val factory = PGPObjectFactory(decoded, JcaKeyFingerprintCalculator())
+            var obj = factory.nextObject()
+            while (obj != null) {
+                when (obj) {
+                    is PGPSignatureList -> obj.forEach { sigs.add(it) }
+                    is PGPSignature -> sigs.add(obj)
+                }
+                obj = factory.nextObject()
+            }
+        } catch (e: Exception) {
+            AppLogger.log("ERROR loadSignatures: ${e.message}")
+        }
+        return sigs
+    }
+
+    private fun findPublicKey(rings: List<PGPPublicKeyRing>, keyId: Long): PGPPublicKey? {
+        for (ring in rings) {
+            for (key in ring.publicKeys) {
+                if (key.keyID == keyId) return key
+            }
+        }
+        return null
+    }
+
+    private fun getTrustLevel(fingerprint: String): String {
+        if (!trustFile.exists()) return "Unknown"
+        val line = trustFile.readLines().firstOrNull {
+            it.startsWith(fingerprint.uppercase())
+        } ?: return "Unknown"
+        return when (line.substringAfter(":").trim()) {
+            "2" -> "Undefined"
+            "3" -> "Marginal"
+            "4" -> "Full"
+            "5" -> "Ultimate"
+            else -> "Unknown"
+        }
+    }
+
+    private fun bytesToHex(bytes: ByteArray): String =
+        bytes.joinToString("") { "%02X".format(it) }
 }
