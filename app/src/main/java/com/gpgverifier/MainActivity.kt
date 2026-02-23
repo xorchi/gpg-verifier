@@ -2,7 +2,6 @@ package com.gpgverifier
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -22,7 +21,7 @@ import androidx.core.content.ContextCompat
 import com.gpgverifier.ui.screens.KeyringScreen
 import com.gpgverifier.ui.screens.VerifyScreen
 import com.gpgverifier.ui.theme.GPGVerifierTheme
-import com.gpgverifier.util.AppLogger // Import logger yang lu buat tadi
+import com.gpgverifier.util.AppLogger
 
 data class NavItem(
     val label: String,
@@ -39,7 +38,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Cek izin storage pas aplikasi dibuka biar bisa nulis log
+        // Panggil pengecekan izin
         checkAndRequestPermissions()
         
         enableEdgeToEdge()
@@ -53,7 +52,6 @@ class MainActivity : ComponentActivity() {
     private fun checkAndRequestPermissions() {
         val permissions = mutableListOf<String>()
         
-        // Tambahin izin baca/tulis storage ke list kalau belum di-allow
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) 
             != PackageManager.PERMISSION_GRANTED) {
             permissions.add(Manifest.permission.READ_EXTERNAL_STORAGE)
@@ -66,18 +64,22 @@ class MainActivity : ComponentActivity() {
         if (permissions.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, permissions.toTypedArray(), 100)
         } else {
-            AppLogger.log("Aplikasi dibuka - Izin storage sudah ada.")
+            AppLogger.log("INFO: Izin storage sudah aktif.")
         }
     }
 
-    // Callback pas user klik Allow/Deny di pop-up
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+    // PERBAIKAN: Parameter Array harus pakai String (tanpa tanda tanya di dalam Array)
+    override fun onRequestPermissionsResult(
+        requestCode: Int, 
+        permissions: Array<out String>, 
+        grantResults: IntArray
+    ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 100) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                AppLogger.log("Izin diberikan oleh user.")
+                AppLogger.log("INFO: User mengizinkan akses storage.")
             } else {
-                AppLogger.log("Izin ditolak oleh user. Logging mungkin tidak akan bekerja.")
+                AppLogger.log("WARN: User menolak akses storage.")
             }
         }
     }
