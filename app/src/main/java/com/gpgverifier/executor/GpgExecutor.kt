@@ -223,7 +223,7 @@ class GpgExecutor(private val context: Context) {
 
     // ── Sign ─────────────────────────────────────────────────────────────────
 
-    fun sign(dataFile: File, keyFingerprint: String, mode: SignMode, passphrase: String): SignResult {
+    fun sign(dataFile: File, keyFingerprint: String, mode: SignMode, passphrase: String, originalName: String = dataFile.name): SignResult {
         AppLogger.log("DEBUG: sign() fp=$keyFingerprint mode=$mode")
         return try {
             val secRing = findSecretKeyRing(keyFingerprint)
@@ -239,7 +239,7 @@ class GpgExecutor(private val context: Context) {
                 SignMode.NORMAL_ARMOR -> ".gpg.asc"
                 SignMode.NORMAL       -> ".gpg"
             }
-            val outFile = saveToDownloads(dataFile.name + ext)
+            val outFile = saveToDownloads(originalName + ext)
 
             // FIX sigType: NORMAL dan NORMAL_ARMOR adalah binary signed document
             val sigType = when (mode) {
@@ -275,6 +275,7 @@ class GpgExecutor(private val context: Context) {
                     // Canonical text untuk signing: trailing whitespace di-strip per baris, CRLF line ending
                     val canonical = contentStr.lines()
                         .joinToString("\r\n") { it.trimEnd() }
+                        .trimEnd('\r', '\n') + "\r\n"
                     sigGen.update(canonical.toByteArray(Charsets.UTF_8))
                     val sig = sigGen.generate()
 
@@ -330,7 +331,7 @@ class GpgExecutor(private val context: Context) {
 
     // ── Encrypt ──────────────────────────────────────────────────────────────
 
-    fun encrypt(dataFile: File, recipientFingerprints: List<String>, armor: Boolean): EncryptResult {
+    fun encrypt(dataFile: File, recipientFingerprints: List<String>, armor: Boolean, originalName: String = dataFile.name): EncryptResult {
         AppLogger.log("DEBUG: encrypt() recipients=${recipientFingerprints.size} armor=$armor")
         return try {
             val pubRings = loadPublicKeyring()
@@ -341,7 +342,7 @@ class GpgExecutor(private val context: Context) {
             }
             val ext = if (armor) ".asc" else ".gpg"
             // FIX penamaan: nama asli + ekstensi, dengan penanganan konflik
-            val outFile = saveToDownloads(dataFile.name + ext)
+            val outFile = saveToDownloads(originalName + ext)
             val encGen = PGPEncryptedDataGenerator(
                 org.bouncycastle.openpgp.operator.bc.BcPGPDataEncryptorBuilder(SymmetricKeyAlgorithmTags.AES_256)
                     .setWithIntegrityPacket(true)
@@ -368,7 +369,7 @@ class GpgExecutor(private val context: Context) {
 
     // ── Encrypt Symmetric ────────────────────────────────────────────────────
 
-    fun encryptSymmetric(dataFile: File, passphrase: String, armor: Boolean): EncryptResult {
+    fun encryptSymmetric(dataFile: File, passphrase: String, armor: Boolean, originalName: String = dataFile.name): EncryptResult {
         AppLogger.log("DEBUG: encryptSymmetric() file=${dataFile.name} armor=$armor")
         return try {
             val ext = if (armor) ".asc" else ".gpg"
@@ -837,11 +838,25 @@ class GpgExecutor(private val context: Context) {
                 ?.publicKey?.userIDs?.asSequence()?.firstOrNull() as? String
                 ?: fp.takeLast(8)
             val safeName = uid.replace(Regex("[^a-zA-Z0-9_\\-@.]"), "_")
+
             val out = java.io.ByteArrayOutputStream()
-            val armor = armoredOut(out)
-            loadPublicKeyring()?.firstOrNull { bytesToHex(it.publicKey.fingerprint) == fp }?.encode(armor)
-            loadSecretKeyring()?.firstOrNull { bytesToHex(it.secretKey.publicKey.fingerprint) == fp }?.encode(armor)
-            armor.close()
+
+            // Tulis public key dalam armor block tersendiri
+            val pubRing = loadPublicKeyring()?.firstOrNull { bytesToHex(it.publicKey.fingerprint) == fp }
+            if (pubRing != null) {
+                val pubArmor = armoredOut(out)
+                pubRing.encode(pubArmor)
+                pubArmor.close()
+            }
+
+            // Tulis secret key dalam armor block tersendiri (terpisah)
+            val secRing = loadSecretKeyring()?.firstOrNull { bytesToHex(it.secretKey.publicKey.fingerprint) == fp }
+            if (secRing != null) {
+                val secArmor = armoredOut(out)
+                secRing.encode(secArmor)
+                secArmor.close()
+            }
+
             val file = saveToDownloads("$safeName.asc")
             file.writeBytes(out.toByteArray())
             GpgOperationResult.Success("Backup disimpan: ${file.name}")

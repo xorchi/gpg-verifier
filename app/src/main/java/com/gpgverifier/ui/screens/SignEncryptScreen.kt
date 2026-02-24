@@ -332,10 +332,7 @@ fun SymmetricEncryptTab(repo: KeyringRepository, scope: kotlinx.coroutines.Corou
 @Composable
 fun SuccessCard(message: String, outputPath: String? = null) {
     val context = LocalContext.current
-    val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { actResult ->
-        val destUri = actResult.data?.data ?: return@rememberLauncherForActivityResult
-        if (outputPath != null) FileShareHelper.copyToUri(context, outputPath, destUri)
-    }
+    val fileName = outputPath?.let { java.io.File(it).name } ?: ""
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
@@ -344,24 +341,24 @@ fun SuccessCard(message: String, outputPath: String? = null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.CheckCircle, null, tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(12.dp))
-                Text(message, style = MaterialTheme.typography.bodyMedium)
+                Column {
+                    Text(message, style = MaterialTheme.typography.bodyMedium)
+                    if (fileName.isNotBlank()) {
+                        Text(
+                            "Tersimpan di Download/$fileName",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                }
             }
             if (outputPath != null) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
-                        onClick = { saveLauncher.launch(FileShareHelper.createSaveIntent(outputPath)) },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Default.Save, null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp)); Text("Simpan")
-                    }
-                    OutlinedButton(
-                        onClick = { FileShareHelper.shareFile(context, outputPath) },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Default.Share, null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp)); Text("Bagikan")
-                    }
+                OutlinedButton(
+                    onClick = { FileShareHelper.shareFile(context, outputPath) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Share, null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp)); Text("Bagikan")
                 }
             }
         }

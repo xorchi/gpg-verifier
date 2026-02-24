@@ -44,7 +44,8 @@ class KeyringRepository(context: Context) {
         keyFingerprint: String, mode: SignMode, passphrase: String
     ): SignResult = withContext(Dispatchers.IO) {
         val dataFile = uriToTempFile(dataUri, context, "sign_input")
-        try { executor.sign(dataFile, keyFingerprint, mode, passphrase) }
+        val originalName = getOriginalFileName(dataUri, context)
+        try { executor.sign(dataFile, keyFingerprint, mode, passphrase, originalName) }
         finally { dataFile.delete() }
     }
 
@@ -54,7 +55,8 @@ class KeyringRepository(context: Context) {
         recipientFingerprints: List<String>, armor: Boolean
     ): EncryptResult = withContext(Dispatchers.IO) {
         val dataFile = uriToTempFile(dataUri, context, "enc_input")
-        try { executor.encrypt(dataFile, recipientFingerprints, armor) }
+        val originalName = getOriginalFileName(dataUri, context)
+        try { executor.encrypt(dataFile, recipientFingerprints, armor, originalName) }
         finally { dataFile.delete() }
     }
 
@@ -64,7 +66,8 @@ class KeyringRepository(context: Context) {
         passphrase: String, armor: Boolean
     ): EncryptResult = withContext(Dispatchers.IO) {
         val dataFile = uriToTempFile(dataUri, context, "enc_sym_input")
-        try { executor.encryptSymmetric(dataFile, passphrase, armor) }
+        val originalName = getOriginalFileName(dataUri, context)
+        try { executor.encryptSymmetric(dataFile, passphrase, armor, originalName) }
         finally { dataFile.delete() }
     }
 
@@ -135,5 +138,18 @@ class KeyringRepository(context: Context) {
         val temp = File.createTempFile(prefix, ".tmp", cacheDir)
         context.contentResolver.openInputStream(uri)?.use { it.copyTo(temp.outputStream()) }
         return temp
+    }
+
+    private fun getOriginalFileName(uri: Uri, context: Context): String {
+        // Coba baca display name via ContentResolver
+        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            val col = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+            if (col != -1 && cursor.moveToFirst()) {
+                val name = cursor.getString(col)
+                if (!name.isNullOrBlank()) return name
+            }
+        }
+        // Fallback: ambil segmen terakhir dari path URI
+        return uri.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':') ?: "output"
     }
 }
