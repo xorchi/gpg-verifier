@@ -870,25 +870,53 @@ class GpgExecutor(private val context: Context) {
     ): Int {
         var count = 0
         val calc = org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator()
-        val factory = PGPObjectFactory(stream, calc)
-        var obj = factory.nextObject()
-        while (obj != null) {
-            when (obj) {
-                is PGPPublicKeyRing -> {
-                    val fp = bytesToHex(obj.publicKey.fingerprint)
-                    if (!existing.containsKey(fp)) count++
-                    existing[fp] = obj
-                }
-                is PGPPublicKeyRingCollection -> {
-                    for (ring in obj.keyRings) {
-                        val fp = bytesToHex(ring.publicKey.fingerprint)
+        val bytes = stream.readBytes()
+
+        // Percobaan 1: PGPPublicKeyRingCollection constructor
+        try {
+            val col = PGPPublicKeyRingCollection(
+                PGPUtil.getDecoderStream(bytes.inputStream()), calc
+            )
+            for (ring in col.keyRings) {
+                val fp = bytesToHex(ring.publicKey.fingerprint)
+                if (!existing.containsKey(fp)) count++
+                existing[fp] = ring
+            }
+            if (count > 0) {
+                AppLogger.log("DEBUG: importPublicRingsFromStream via Collection — $count rings")
+                return count
+            }
+        } catch (e: Exception) {
+            AppLogger.log("WARN importPublicRings Collection: ${e.message}")
+        }
+
+        // Percobaan 2: PGPObjectFactory
+        try {
+            val factory = PGPObjectFactory(PGPUtil.getDecoderStream(bytes.inputStream()), calc)
+            var obj = factory.nextObject()
+            while (obj != null) {
+                AppLogger.log("DEBUG: importPublicRings factory obj type: ${obj.javaClass.simpleName}")
+                when (obj) {
+                    is PGPPublicKeyRing -> {
+                        val fp = bytesToHex(obj.publicKey.fingerprint)
                         if (!existing.containsKey(fp)) count++
-                        existing[fp] = ring
+                        existing[fp] = obj
+                    }
+                    is PGPPublicKeyRingCollection -> {
+                        for (ring in obj.keyRings) {
+                            val fp = bytesToHex(ring.publicKey.fingerprint)
+                            if (!existing.containsKey(fp)) count++
+                            existing[fp] = ring
+                        }
                     }
                 }
+                obj = try { factory.nextObject() } catch (e: Exception) { null }
             }
-            obj = try { factory.nextObject() } catch (e: Exception) { null }
+        } catch (e: Exception) {
+            AppLogger.log("WARN importPublicRings factory: ${e.message}")
         }
+
+        AppLogger.log("DEBUG: importPublicRingsFromStream total=$count")
         return count
     }
 
@@ -925,26 +953,87 @@ class GpgExecutor(private val context: Context) {
     ): Int {
         var count = 0
         val calc = org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator()
-        val factory = PGPObjectFactory(stream, calc)
-        var obj = factory.nextObject()
-        while (obj != null) {
-            when (obj) {
-                is PGPSecretKeyRing -> {
-                    val fp = bytesToHex(obj.secretKey.publicKey.fingerprint)
-                    if (!existing.containsKey(fp)) count++
-                    existing[fp] = obj
-                }
-                is PGPSecretKeyRingCollection -> {
-                    for (ring in obj.keyRings) {
-                        val fp = bytesToHex(ring.secretKey.publicKey.fingerprint)
+        // Baca bytes sekali, gunakan untuk beberapa percobaan
+        val bytes = stream.readBytes()
+
+        // Percobaan 1: PGPSecretKeyRingCollection constructor — paling andal untuk multi-ring
+        try {
+            val col = PGPSecretKeyRingCollection(
+                PGPUtil.getDecoderStream(bytes.inputStream()), calc
+            )
+            for (ring in col.keyRings) {
+                val fp = bytesToHex(ring.secretKey.publicKey.fingerprint)
+                if (!existing.containsKey(fp)) count++
+                existing[fp] = ring
+            }
+            if (count > 0) {
+                AppLogger.log("DEBUG: importSecretRingsFromStream via Collection — $count rings")
+                extractPublicKeysFromSecretRings(existing.values.toList())
+                return count
+            }
+        } catch (e: Exception) {
+            AppLogger.log("WARN importSecretRings Collection: ${e.message}")
+        }
+
+        // Percobaan 2: PGPObjectFactory — untuk single ring atau format non-standard
+        try {
+            val factory = PGPObjectFactory(PGPUtil.getDecoderStream(bytes.inputStream()), calc)
+            var obj = factory.nextObject()
+            while (obj != null) {
+                AppLogger.log("DEBUG: importSecretRings factory obj type: ${obj.javaClass.simpleName}")
+                when (obj) {
+                    is PGPSecretKeyRing -> {
+                        val fp = bytesToHex(obj.secretKey.publicKey.fingerprint)
                         if (!existing.containsKey(fp)) count++
-                        existing[fp] = ring
+                        existing[fp] = obj
+                    }
+                    is PGPSecretKeyRingCollection -> {
+                        for (ring in obj.keyRings) {
+                            val fp = bytesToHex(ring.secretKey.publicKey.fingerprint)
+                            if (!existing.containsKey(fp)) count++
+                            existing[fp] = ring
+                        }
                     }
                 }
+                obj = try { factory.nextObject() } catch (e: Exception) { null }
             }
-            obj = try { factory.nextObject() } catch (e: Exception) { null }
+        } catch (e: Exception) {
+            AppLogger.log("WARN importSecretRings factory: ${e.message}")
         }
+
+        if (count > 0) extractPublicKeysFromSecretRings(existing.values.toList())
+        AppLogger.log("DEBUG: importSecretRingsFromStream total=$count")
         return count
+    }
+
+    // Ekstrak public key dari setiap secret key ring dan tambahkan ke pubring
+    private fun extractPublicKeysFromSecretRings(secretRings: List<PGPSecretKeyRing>) {
+        try {
+            val calc = org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator()
+            val existingPub = loadPublicKeyring()
+                ?.associateBy { bytesToHex(it.publicKey.fingerprint) }
+                ?.toMutableMap() ?: mutableMapOf()
+            var added = 0
+            for (secRing in secretRings) {
+                val fp = bytesToHex(secRing.secretKey.publicKey.fingerprint)
+                if (!existingPub.containsKey(fp)) {
+                    // Kumpulkan semua public key dari secret ring
+                    val pubKeys = mutableListOf<org.bouncycastle.openpgp.PGPPublicKey>()
+                    for (secKey in secRing.secretKeys) {
+                        pubKeys.add(secKey.publicKey)
+                    }
+                    val pubRing = PGPPublicKeyRing(pubKeys)
+                    existingPub[fp] = pubRing
+                    added++
+                }
+            }
+            if (added > 0) {
+                savePublicKeyring(existingPub.values.toList())
+                AppLogger.log("DEBUG: extractPublicKeysFromSecretRings — $added pub ring ditambahkan")
+            }
+        } catch (e: Exception) {
+            AppLogger.log("WARN extractPublicKeysFromSecretRings: ${e.message}")
+        }
     }
 
     private fun loadSignatures(input: InputStream): List<PGPSignature> {
