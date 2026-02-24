@@ -5,8 +5,6 @@ import com.gpgverifier.model.*
 import com.gpgverifier.util.AppLogger
 import org.bouncycastle.bcpg.ArmoredOutputStream
 
-private fun armoredOut(out: java.io.OutputStream): ArmoredOutputStream =
-    ArmoredOutputStream(out).also { it.setHeader("Version", "GPGVerifier") }
 import org.bouncycastle.bcpg.HashAlgorithmTags
 import org.bouncycastle.bcpg.SymmetricKeyAlgorithmTags
 import org.bouncycastle.bcpg.sig.KeyFlags
@@ -18,6 +16,10 @@ import java.net.URL
 import java.security.SecureRandom
 import java.text.SimpleDateFormat
 import java.util.*
+
+private fun armoredOut(out: java.io.OutputStream): ArmoredOutputStream =
+    ArmoredOutputStream(out).also { it.setHeader("Version", "GPGVerifier") }
+
 
 class GpgExecutor(private val context: Context) {
 
