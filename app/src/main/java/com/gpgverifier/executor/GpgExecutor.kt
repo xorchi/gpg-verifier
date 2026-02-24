@@ -17,8 +17,11 @@ import java.security.SecureRandom
 import java.text.SimpleDateFormat
 import java.util.*
 
-private fun armoredOut(out: java.io.OutputStream): ArmoredOutputStream =
-    ArmoredOutputStream(out).also { it.setHeader("Version", "GPGVerifier") }
+private fun armoredOut(out: java.io.OutputStream): ArmoredOutputStream {
+    val aos = ArmoredOutputStream(out)
+    aos.resetHeaders()  // hapus semua header default termasuk "Version: BC"
+    return aos
+}
 
 
 class GpgExecutor(private val context: Context) {
@@ -476,8 +479,9 @@ class GpgExecutor(private val context: Context) {
                 ?: return DecryptResult(false, errorMessage = "Struktur data GPG tidak valid")
 
             // FIX penamaan decrypt: hapus ekstensi terakhir, tanpa prefix "decrypted_"
-            val rawName = litData.fileName.ifBlank { decryptedName(dataFile.name) }
-            val outName = decryptedName(rawName).ifBlank { rawName }
+            // Jika LiteralData menyimpan nama asli (hasil encrypt kita), pakai langsung.
+            // decryptedName() hanya sebagai fallback ketika fileName kosong.
+            val outName = litData.fileName.ifBlank { decryptedName(dataFile.name) }
             val outFile = saveToDownloads(outName)
             outFile.outputStream().use { litData.inputStream.copyTo(it) }
             AppLogger.log("DEBUG: decrypt() output=${outFile.absolutePath}")
@@ -674,7 +678,14 @@ class GpgExecutor(private val context: Context) {
         AppLogger.log("DEBUG: importKeyFromKeyserver() keyId=$keyId ks=$keyserver")
         return try {
             val base   = keyserver.trimEnd('/').replace("hkps://", "https://").replace("hkp://", "http://")
-            val search = if (keyId.contains("@")) keyId else "0x$keyId"
+            val search = when {
+                keyId.contains("@")        -> keyId          // email
+                keyId.startsWith("0x") ||
+                keyId.startsWith("0X")     -> keyId          // sudah hex dengan prefix
+                keyId.all { it.isLetterOrDigit() } &&
+                keyId.length >= 8          -> "0x$keyId"     // hex tanpa prefix
+                else                       -> keyId          // biarkan keyserver yang validasi
+            }
             val url    = "$base/pks/lookup?op=get&search=$search&options=mr"
             AppLogger.log("DEBUG: Fetching $url")
             val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
@@ -937,38 +948,44 @@ class GpgExecutor(private val context: Context) {
             val pubRings = loadPublicKeyring()
                 ?: return VerificationResult(false, "", "", "", "", "Keyring kosong")
             val calc = org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator()
-            val bytes = PGPUtil.getDecoderStream(signedFile.inputStream()).readBytes()
 
-            // Unwrap compressed jika ada, temukan OnePassSignatureList
+            // Decode armor jika ada, fallback ke binary
+            val rawBytes = signedFile.readBytes()
+            val decodedBytes = try {
+                PGPUtil.getDecoderStream(rawBytes.inputStream()).readBytes()
+            } catch (e: Exception) { rawBytes }
+
+            // Decompress jika ada — semua 3 pass harus dilakukan pada level yang sama (decompressed)
+            val innerBytes: ByteArray
+            val topObj = PGPObjectFactory(decodedBytes.inputStream(), calc).nextObject()
+            innerBytes = if (topObj is PGPCompressedData) {
+                topObj.dataStream.readBytes()
+            } else {
+                decodedBytes
+            }
+
             fun nextFrom(b: ByteArray) = PGPObjectFactory(b.inputStream(), calc)
-            var obj: Any? = nextFrom(bytes).nextObject()
-            if (obj is PGPCompressedData)
-                obj = PGPObjectFactory(obj.dataStream, calc).nextObject()
-            val onePassList = obj as? PGPOnePassSignatureList
+
+            // Pass 1: temukan OnePassSignatureList dan inisialisasi verifier
+            val onePassList = nextFrom(innerBytes).nextObject() as? PGPOnePassSignatureList
                 ?: return VerificationResult(false, "", "", "", "", "File bukan embedded signed document")
             val ops = onePassList[0]
-
             val pubKey = findPublicKey(pubRings, ops.keyID)
                 ?: return VerificationResult(false, "", "", "", "", "Public key tidak ditemukan di keyring")
             ops.init(org.bouncycastle.openpgp.operator.bc.BcPGPContentVerifierBuilderProvider(), pubKey)
 
-            // Baca literal data untuk update OPS
-            val factory2 = nextFrom(bytes)
-            factory2.nextObject() // skip onepass list
-            val litObj = factory2.nextObject().let {
-                if (it is PGPCompressedData)
-                    PGPObjectFactory(it.dataStream, calc).nextObject()
-                else it
-            }
-            val litData = litObj as? PGPLiteralData
+            // Pass 2: baca literal data dan update verifier
+            val factory2 = nextFrom(innerBytes)
+            factory2.nextObject() // skip OnePassSignatureList
+            val litData = factory2.nextObject() as? PGPLiteralData
                 ?: return VerificationResult(false, "", "", "", "", "Literal data tidak ditemukan")
             val buf = ByteArray(8192); var n: Int
             while (litData.inputStream.read(buf).also { n = it } >= 0) ops.update(buf, 0, n)
 
-            // Baca signature list
-            val factory3 = nextFrom(bytes)
-            factory3.nextObject() // skip onepass list
-            factory3.nextObject() // skip literal data
+            // Pass 3: baca signature dan verifikasi
+            val factory3 = nextFrom(innerBytes)
+            factory3.nextObject() // skip OnePassSignatureList
+            factory3.nextObject() // skip LiteralData
             val sigList = factory3.nextObject() as? PGPSignatureList
                 ?: return VerificationResult(false, "", "", "", "", "Signature list tidak ditemukan")
             val sig = sigList[0]
