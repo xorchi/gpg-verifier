@@ -312,9 +312,13 @@ ${e.stackTraceToString()}")
     fun decrypt(dataFile: File, passphrase: String): DecryptResult {
         AppLogger.log("DEBUG: decrypt() file=${dataFile.name}")
         return try {
-            val rawBytes = PGPUtil.getDecoderStream(dataFile.inputStream()).readBytes()
-
-            val factory = PGPObjectFactory(rawBytes.inputStream(), BcKeyFingerprintCalculator())
+            // Support both armored (.asc) and binary (.gpg) input
+            val inputStream = try {
+                PGPUtil.getDecoderStream(dataFile.inputStream())
+            } catch (e: Exception) {
+                dataFile.inputStream()
+            }
+            val factory = PGPObjectFactory(inputStream, BcKeyFingerprintCalculator())
             var encData: PGPEncryptedDataList? = null
             var nextObj: Any? = factory.nextObject()
             while (nextObj != null && encData == null) {
