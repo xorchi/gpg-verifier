@@ -795,8 +795,7 @@ class GpgExecutor(private val context: Context) {
         for (line in text.lines()) {
             if (line.startsWith("-----BEGIN PGP")) { inBlock = true; sb.clear() }
             if (inBlock) {
-                sb.append(line).append('
-')
+                sb.append(line).append("\n")
                 if (line.startsWith("-----END PGP")) { blocks.add(sb.toString()); inBlock = false }
             }
         }
