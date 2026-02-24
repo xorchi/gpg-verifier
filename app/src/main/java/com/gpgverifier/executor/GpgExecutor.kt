@@ -30,6 +30,41 @@ class GpgExecutor(private val context: Context) {
     private val secretKeyringFile: File get() = File(keyringDir, "secring.pgp")
     private val trustFile: File       get() = File(keyringDir, "trustdb.txt")
 
+    // ── Output file naming helpers ────────────────────────────────────────────
+
+    /**
+     * Mengembalikan File dengan nama unik di [dir].
+     * Jika [name] sudah ada, menambahkan suffix -1, -2, dst. sebelum ekstensi terdepan.
+     * Contoh: "file.txt" → "file-1.txt" → "file-2.txt"
+     */
+    private fun uniqueFile(dir: File, name: String): File {
+        val target = File(dir, name)
+        if (!target.exists()) return target
+
+        // Pisahkan base dan ekstensi terdepan
+        // "file.txt.asc" → base="file", ext=".txt.asc"
+        val dotIdx = name.indexOf('.')
+        val base   = if (dotIdx != -1) name.substring(0, dotIdx) else name
+        val ext    = if (dotIdx != -1) name.substring(dotIdx) else ""
+
+        var counter = 1
+        while (true) {
+            val candidate = File(dir, "$base-$counter$ext")
+            if (!candidate.exists()) return candidate
+            counter++
+        }
+    }
+
+    /**
+     * Menghasilkan nama file output untuk operasi decrypt:
+     * hapus ekstensi terakhir dari [name]. Jika tidak ada ekstensi, nama tetap.
+     * Contoh: "file.txt.gpg" → "file.txt", "file.gpg" → "file"
+     */
+    private fun decryptedName(name: String): String {
+        val lastDot = name.lastIndexOf('.')
+        return if (lastDot != -1) name.substring(0, lastDot) else name
+    }
+
     // ── Verify (detached signature) ───────────────────────────────────────────
 
     fun verify(dataFile: File, sigFile: File): VerificationResult {
@@ -73,33 +108,49 @@ class GpgExecutor(private val context: Context) {
             val pubRings = loadPublicKeyring()
                 ?: return VerificationResult(false, "", "", "", "", "Keyring kosong — import public key terlebih dahulu")
 
-            val content = clearSignFile.readText()
+            val content = clearSignFile.readText(Charsets.UTF_8)
 
             // Validasi format clearsign
-            if (!content.contains("-----BEGIN PGP SIGNED MESSAGE-----"))
+            val msgHeader = "-----BEGIN PGP SIGNED MESSAGE-----"
+            val sigHeader = "-----BEGIN PGP SIGNATURE-----"
+            val sigFooter = "-----END PGP SIGNATURE-----"
+
+            if (!content.contains(msgHeader))
                 return VerificationResult(false, "", "", "", "", "File bukan format clearsign GPG yang valid")
 
-            // Parsing manual: ambil bagian teks dan signature
-            val sigStart = content.indexOf("-----BEGIN PGP SIGNATURE-----")
+            val sigStart = content.indexOf(sigHeader)
             if (sigStart == -1)
                 return VerificationResult(false, "", "", "", "", "Blok signature tidak ditemukan dalam file")
 
-            // Ambil body teks (antara header + blank line dan -----BEGIN PGP SIGNATURE-----)
-            val headerEnd = content.indexOf("\n\n")
-            if (headerEnd == -1)
-                return VerificationResult(false, "", "", "", "", "Format clearsign tidak valid — header tidak ditemukan")
+            val sigEnd = content.indexOf(sigFooter)
+            if (sigEnd == -1)
+                return VerificationResult(false, "", "", "", "", "Footer signature tidak ditemukan dalam file")
 
-            val signedText = content.substring(headerEnd + 2, sigStart).trimEnd('\n')
-            val sigBlock   = content.substring(sigStart)
+            // Cari blank line pertama SETELAH baris header PGP (Hash: ...)
+            // Header PGP berakhir pada blank line pertama setelah "-----BEGIN PGP SIGNED MESSAGE-----"
+            val msgHeaderEnd = content.indexOf(msgHeader) + msgHeader.length
+            // Cari "\n\n" atau "\r\n\r\n" setelah header
+            val blankLF   = content.indexOf("\n\n", msgHeaderEnd)
+            val blankCRLF = content.indexOf("\r\n\r\n", msgHeaderEnd)
+            val headerEnd = when {
+                blankCRLF != -1 && (blankLF == -1 || blankCRLF < blankLF) -> blankCRLF + 4
+                blankLF   != -1 -> blankLF + 2
+                else -> return VerificationResult(false, "", "", "", "", "Format clearsign tidak valid — header tidak ditemukan")
+            }
 
-            // Parse signature block
-            val sigBytes  = sigBlock.toByteArray(Charsets.UTF_8)
-            val sigs      = loadSignatures(sigBytes.inputStream())
+            // Teks yang ditandatangani: antara blank-line-akhir-header dan awal blok signature
+            val signedText = content.substring(headerEnd, sigStart)
+                .trimEnd('\r', '\n')
+
+            // FIX: Parse signature block langsung via ArmoredInputStream, bukan PGPUtil.getDecoderStream
+            // agar tidak sensitif terhadap header custom "Version: GPGVerifier"
+            val sigBlock = content.substring(sigStart, sigEnd + sigFooter.length)
+            val sigs = parseClearSignSignatureBlock(sigBlock)
             if (sigs.isEmpty())
                 return VerificationResult(false, "", "", "", "", "Tidak ada signature yang dapat diparse")
 
-            // Clearsign menggunakan canonical line ending (\r\n) untuk verifikasi
-            val canonicalText = signedText.lines().joinToString("\r\n")
+            // Clearsign: verifikasi menggunakan canonical line ending (\r\n), trailing whitespace di-strip per baris
+            val canonicalText = signedText.lines().joinToString("\r\n") { it.trimEnd() }
 
             for (sig in sigs) {
                 val pubKey = findPublicKey(pubRings, sig.keyID) ?: continue
@@ -126,6 +177,36 @@ class GpgExecutor(private val context: Context) {
         }
     }
 
+    /**
+     * FIX untuk "invalid armor header":
+     * Parse blok PGP SIGNATURE langsung menggunakan ArmoredInputStream,
+     * yang toleran terhadap header tambahan seperti "Version: GPGVerifier".
+     */
+    private fun parseClearSignSignatureBlock(sigBlock: String): List<PGPSignature> {
+        val sigs = mutableListOf<PGPSignature>()
+        return try {
+            val armoredIn = org.bouncycastle.bcpg.ArmoredInputStream(
+                sigBlock.byteInputStream(Charsets.UTF_8)
+            )
+            val factory = PGPObjectFactory(
+                armoredIn,
+                org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator()
+            )
+            var obj = factory.nextObject()
+            while (obj != null) {
+                when (obj) {
+                    is PGPSignatureList -> obj.forEach { sigs.add(it) }
+                    is PGPSignature     -> sigs.add(obj)
+                }
+                obj = factory.nextObject()
+            }
+            sigs
+        } catch (e: Exception) {
+            AppLogger.log("ERROR parseClearSignSignatureBlock: ${e.message}")
+            sigs
+        }
+    }
+
     // ── Sign ─────────────────────────────────────────────────────────────────
 
     fun sign(dataFile: File, keyFingerprint: String, mode: SignMode, passphrase: String): SignResult {
@@ -144,11 +225,13 @@ class GpgExecutor(private val context: Context) {
                 SignMode.NORMAL_ARMOR -> ".gpg.asc"
                 SignMode.NORMAL       -> ".gpg"
             }
-            val outFile = File(context.cacheDir, dataFile.name + ext)
+            // FIX penamaan: nama asli + ekstensi, dengan penanganan konflik
+            val outFile = uniqueFile(context.cacheDir, dataFile.name + ext)
+
+            // FIX sigType: NORMAL dan NORMAL_ARMOR adalah binary signed document
             val sigType = when (mode) {
-                SignMode.CLEARSIGN, SignMode.NORMAL, SignMode.NORMAL_ARMOR ->
-                    PGPSignature.CANONICAL_TEXT_DOCUMENT
-                else -> PGPSignature.BINARY_DOCUMENT
+                SignMode.CLEARSIGN -> PGPSignature.CANONICAL_TEXT_DOCUMENT
+                else               -> PGPSignature.BINARY_DOCUMENT
             }
             val sigGen = PGPSignatureGenerator(
                 org.bouncycastle.openpgp.operator.bc.BcPGPContentSignerBuilder(
@@ -211,9 +294,17 @@ class GpgExecutor(private val context: Context) {
                     armoredOut(outFile.outputStream()).use { it.write(bout.toByteArray()) }
                 }
                 SignMode.NORMAL -> {
-                    val content = dataFile.readBytes()
-                    sigGen.update(content)
-                    outFile.outputStream().use { sigGen.generate().encode(it) }
+                    val bout = ByteArrayOutputStream()
+                    PGPCompressedDataGenerator(PGPCompressedData.ZIP).open(bout).use { cos ->
+                        PGPLiteralDataGenerator().open(cos, PGPLiteralData.BINARY,
+                            dataFile.name, dataFile.length(), Date()).use { los ->
+                            val content = dataFile.readBytes()
+                            sigGen.update(content)
+                            los.write(content)
+                        }
+                        sigGen.generate().encode(cos)
+                    }
+                    outFile.outputStream().use { it.write(bout.toByteArray()) }
                 }
             }
             AppLogger.log("DEBUG: sign() output=${outFile.absolutePath}")
@@ -236,26 +327,24 @@ class GpgExecutor(private val context: Context) {
                     ?: return EncryptResult(false, errorMessage = "Encryption key tidak ditemukan: $fp")
             }
             val ext = if (armor) ".asc" else ".gpg"
-            val outFile = File(context.cacheDir, dataFile.name + ext)
-            val rawOut: OutputStream =
-                if (armor) armoredOut(outFile.outputStream()) else outFile.outputStream()
-
+            // FIX penamaan: nama asli + ekstensi, dengan penanganan konflik
+            val outFile = uniqueFile(context.cacheDir, dataFile.name + ext)
             val encGen = PGPEncryptedDataGenerator(
-                JcePGPDataEncryptorBuilder(SymmetricKeyAlgorithmTags.AES_256)
+                org.bouncycastle.openpgp.operator.bc.BcPGPDataEncryptorBuilder(SymmetricKeyAlgorithmTags.AES_256)
                     .setWithIntegrityPacket(true)
                     .setSecureRandom(SecureRandom())
-                    .setProvider("BC")
             ).apply { encKeys.forEach { addMethod(org.bouncycastle.openpgp.operator.bc.BcPublicKeyKeyEncryptionMethodGenerator(it)) } }
 
-            encGen.open(rawOut, ByteArray(1 shl 16)).use { encOut ->
-                PGPCompressedDataGenerator(PGPCompressedData.ZIP).open(encOut).use { cos ->
-                    PGPLiteralDataGenerator().open(cos, PGPLiteralData.BINARY,
-                        dataFile.name, dataFile.length(), Date()).use { los ->
-                        dataFile.inputStream().use { it.copyTo(los) }
+            (if (armor) armoredOut(outFile.outputStream()) else outFile.outputStream()).use { rawOut ->
+                encGen.open(rawOut, ByteArray(1 shl 16)).use { encOut ->
+                    PGPCompressedDataGenerator(PGPCompressedData.ZIP).open(encOut).use { cos ->
+                        PGPLiteralDataGenerator().open(cos, PGPLiteralData.BINARY,
+                            dataFile.name, dataFile.length(), Date()).use { los ->
+                            dataFile.inputStream().use { it.copyTo(los) }
+                        }
                     }
                 }
             }
-            rawOut.close()
             AppLogger.log("DEBUG: encrypt() output=${outFile.absolutePath}")
             EncryptResult(success = true, outputPath = outFile.absolutePath)
         } catch (e: Exception) {
@@ -270,29 +359,27 @@ class GpgExecutor(private val context: Context) {
         AppLogger.log("DEBUG: encryptSymmetric() file=${dataFile.name} armor=$armor")
         return try {
             val ext = if (armor) ".asc" else ".gpg"
-            val outFile = File(context.cacheDir, dataFile.name + ext)
-            val rawOut: OutputStream =
-                if (armor) armoredOut(outFile.outputStream()) else outFile.outputStream()
-
+            // FIX penamaan: nama asli + ekstensi, dengan penanganan konflik
+            val outFile = uniqueFile(context.cacheDir, dataFile.name + ext)
             val encGen = PGPEncryptedDataGenerator(
-                JcePGPDataEncryptorBuilder(SymmetricKeyAlgorithmTags.AES_256)
+                org.bouncycastle.openpgp.operator.bc.BcPGPDataEncryptorBuilder(SymmetricKeyAlgorithmTags.AES_256)
                     .setWithIntegrityPacket(true)
                     .setSecureRandom(SecureRandom())
-                    .setProvider("BC")
             ).apply {
-                addMethod(JcePBEKeyEncryptionMethodGenerator(passphrase.toCharArray())
-                    .setProvider("BC"))
+                addMethod(org.bouncycastle.openpgp.operator.bc.BcPBEKeyEncryptionMethodGenerator(
+                    passphrase.toCharArray(), HashAlgorithmTags.SHA256))
             }
 
-            encGen.open(rawOut, ByteArray(1 shl 16)).use { encOut ->
-                PGPCompressedDataGenerator(PGPCompressedData.ZIP).open(encOut).use { cos ->
-                    PGPLiteralDataGenerator().open(cos, PGPLiteralData.BINARY,
-                        dataFile.name, dataFile.length(), Date()).use { los ->
-                        dataFile.inputStream().use { it.copyTo(los) }
+            (if (armor) armoredOut(outFile.outputStream()) else outFile.outputStream()).use { rawOut ->
+                encGen.open(rawOut, ByteArray(1 shl 16)).use { encOut ->
+                    PGPCompressedDataGenerator(PGPCompressedData.ZIP).open(encOut).use { cos ->
+                        PGPLiteralDataGenerator().open(cos, PGPLiteralData.BINARY,
+                            dataFile.name, dataFile.length(), Date()).use { los ->
+                            dataFile.inputStream().use { it.copyTo(los) }
+                        }
                     }
                 }
             }
-            rawOut.close()
             AppLogger.log("DEBUG: encryptSymmetric() output=${outFile.absolutePath}")
             EncryptResult(success = true, outputPath = outFile.absolutePath)
         } catch (e: Exception) {
@@ -306,9 +393,12 @@ class GpgExecutor(private val context: Context) {
     fun decrypt(dataFile: File, passphrase: String): DecryptResult {
         AppLogger.log("DEBUG: decrypt() file=${dataFile.name}")
         return try {
-            val rawBytes = PGPUtil.getDecoderStream(dataFile.inputStream()).readBytes()
-
-            val factory = PGPObjectFactory(rawBytes.inputStream(), org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator())
+            val inputStream = try {
+                PGPUtil.getDecoderStream(dataFile.inputStream())
+            } catch (e: Exception) {
+                dataFile.inputStream()
+            }
+            val factory = PGPObjectFactory(inputStream, org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator())
             var encData: PGPEncryptedDataList? = null
             var nextObj: Any? = factory.nextObject()
             while (nextObj != null && encData == null) {
@@ -368,10 +458,10 @@ class GpgExecutor(private val context: Context) {
             val litData = unwrapToLiteralData(plainStream)
                 ?: return DecryptResult(false, errorMessage = "Struktur data GPG tidak valid")
 
-            val outName = litData.fileName.ifBlank {
-                dataFile.name.removeSuffix(".gpg").removeSuffix(".asc")
-            }
-            val outFile = File(context.cacheDir, "decrypted_$outName")
+            // FIX penamaan decrypt: hapus ekstensi terakhir, tanpa prefix "decrypted_"
+            val rawName = litData.fileName.ifBlank { decryptedName(dataFile.name) }
+            val outName = decryptedName(rawName).ifBlank { rawName }
+            val outFile = uniqueFile(context.cacheDir, outName)
             outFile.outputStream().use { litData.inputStream.copyTo(it) }
             AppLogger.log("DEBUG: decrypt() output=${outFile.absolutePath}")
             DecryptResult(success = true, outputPath = outFile.absolutePath)
@@ -405,7 +495,6 @@ class GpgExecutor(private val context: Context) {
             val bcDigestProvider = org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider()
             val sha1Calc = bcDigestProvider.get(HashAlgorithmTags.SHA1)
 
-            // Gunakan RSA key generator via BouncyCastle langsung, bukan JCA
             val rsaKeyGen = org.bouncycastle.crypto.generators.RSAKeyPairGenerator()
             rsaKeyGen.init(org.bouncycastle.crypto.params.RSAKeyGenerationParameters(
                 java.math.BigInteger.valueOf(65537),
@@ -526,7 +615,6 @@ class GpgExecutor(private val context: Context) {
     fun exportKeyToKeyserver(fingerprint: String, keyserver: String): GpgOperationResult {
         AppLogger.log("DEBUG: exportKeyToKeyserver() fp=$fingerprint ks=$keyserver")
         return try {
-            // Export public key sebagai armored string
             val exportResult = exportKey(fingerprint, armor = true, secret = false)
             val armoredKey = when (exportResult) {
                 is GpgOperationResult.Success -> exportResult.message
