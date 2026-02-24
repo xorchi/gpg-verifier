@@ -34,13 +34,13 @@ class GpgExecutor(private val context: Context) {
     // ── Verify (detached signature) ───────────────────────────────────────────
 
     fun verify(dataFile: File, sigFile: File): VerificationResult {
-        AppLogger.log("DEBUG: verify() dipanggil")
+        AppLogger.log("DEBUG: verify() called")
         return try {
             val sigs = loadSignatures(sigFile.inputStream())
             if (sigs.isEmpty())
-                return VerificationResult(false, "", "", "", "", "File bukan signature GPG yang valid")
+                return VerificationResult(false, "", "", "", "", "File is not a valid GPG signature")
             val pubRings = loadPublicKeyring()
-                ?: return VerificationResult(false, "", "", "", "", "Keyring kosong — import public key terlebih dahulu")
+                ?: return VerificationResult(false, "", "", "", "", "Keyring is empty — import a public key first")
             for (sig in sigs) {
                 val pubKey = findPublicKey(pubRings, sig.keyID) ?: continue
                 sig.init(BcPGPContentVerifierBuilderProvider(), pubKey)
@@ -56,23 +56,24 @@ class GpgExecutor(private val context: Context) {
                     timestamp    = ts,
                     trustLevel   = getTrustLevel(fp),
                     rawOutput    = if (valid) "Good signature from \"$uid\"" else "BAD signature",
-                    errorMessage = if (!valid) "Signature tidak valid" else null
+                    errorMessage = if (!valid) "Signature is not valid" else null
                 )
             }
-            VerificationResult(false, "", "", "", "", "No public key — key ID tidak ditemukan di keyring")
+            VerificationResult(false, "", "", "", "", "No public key — key ID not found in keyring")
         } catch (e: Exception) {
-            AppLogger.log("ERROR verify: ${e.message}")
-            VerificationResult(false, "", "", "", "", e.message ?: "Verifikasi gagal")
+            AppLogger.log("ERROR verify: ${e.message}
+${e.stackTraceToString()}")
+            VerificationResult(false, "", "", "", "", e.message ?: "Verification failed")
         }
     }
 
     // ── Verify ClearSign (single .asc file) ──────────────────────────────────
 
     fun verifyClearSign(clearSignFile: File): VerificationResult {
-        AppLogger.log("DEBUG: verifyClearSign() dipanggil file=${clearSignFile.name}")
+        AppLogger.log("DEBUG: verifyClearSign() called file=${clearSignFile.name}")
         return try {
             val pubRings = loadPublicKeyring()
-                ?: return VerificationResult(false, "", "", "", "", "Keyring kosong — import public key terlebih dahulu")
+                ?: return VerificationResult(false, "", "", "", "", "Keyring is empty — import a public key first")
 
             val content = clearSignFile.readText()
 
@@ -83,12 +84,12 @@ class GpgExecutor(private val context: Context) {
             // Parsing manual: ambil bagian teks dan signature
             val sigStart = content.indexOf("-----BEGIN PGP SIGNATURE-----")
             if (sigStart == -1)
-                return VerificationResult(false, "", "", "", "", "Blok signature tidak ditemukan dalam file")
+                return VerificationResult(false, "", "", "", "", "Signature block not found in file")
 
             // Ambil body teks (antara header + blank line dan -----BEGIN PGP SIGNATURE-----)
             val headerEnd = content.indexOf("\n\n")
             if (headerEnd == -1)
-                return VerificationResult(false, "", "", "", "", "Format clearsign tidak valid — header tidak ditemukan")
+                return VerificationResult(false, "", "", "", "", "Invalid clearsign format — header not found")
 
             val signedText = content.substring(headerEnd + 2, sigStart).trimEnd('\n')
             val sigBlock   = content.substring(sigStart)
@@ -97,7 +98,7 @@ class GpgExecutor(private val context: Context) {
             val sigBytes  = sigBlock.toByteArray(Charsets.UTF_8)
             val sigs      = loadSignatures(sigBytes.inputStream())
             if (sigs.isEmpty())
-                return VerificationResult(false, "", "", "", "", "Tidak ada signature yang dapat diparse")
+                return VerificationResult(false, "", "", "", "", "No parseable signature found")
 
             // Clearsign menggunakan canonical line ending (\r\n) untuk verifikasi
             val canonicalText = signedText.lines().joinToString("\r\n")
@@ -117,13 +118,14 @@ class GpgExecutor(private val context: Context) {
                     timestamp    = ts,
                     trustLevel   = getTrustLevel(fp),
                     rawOutput    = if (valid) "Good signature from \"$uid\"" else "BAD signature",
-                    errorMessage = if (!valid) "Signature tidak valid" else null
+                    errorMessage = if (!valid) "Signature is not valid" else null
                 )
             }
-            VerificationResult(false, "", "", "", "", "No public key — key ID tidak ditemukan di keyring")
+            VerificationResult(false, "", "", "", "", "No public key — key ID not found in keyring")
         } catch (e: Exception) {
-            AppLogger.log("ERROR verifyClearSign: ${e.message}")
-            VerificationResult(false, "", "", "", "", e.message ?: "Verifikasi clearsign gagal")
+            AppLogger.log("ERROR verifyClearSign: ${e.message}
+${e.stackTraceToString()}")
+            VerificationResult(false, "", "", "", "", e.message ?: "Clearsign verification failed")
         }
     }
 
@@ -133,7 +135,7 @@ class GpgExecutor(private val context: Context) {
         AppLogger.log("DEBUG: sign() fp=$keyFingerprint mode=$mode")
         return try {
             val secRing = findSecretKeyRing(keyFingerprint)
-                ?: return SignResult(false, errorMessage = "Secret key tidak ditemukan")
+                ?: return SignResult(false, errorMessage = "Secret key not found")
             val secKey = secRing.secretKey
             val privateKey = secKey.extractPrivateKey(
                 org.bouncycastle.openpgp.operator.bc.BcPBESecretKeyDecryptorBuilder(org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider()).build(passphrase.toCharArray())
@@ -220,8 +222,9 @@ class GpgExecutor(private val context: Context) {
             AppLogger.log("DEBUG: sign() output=${outFile.absolutePath}")
             SignResult(success = true, outputPath = outFile.absolutePath)
         } catch (e: Exception) {
-            AppLogger.log("ERROR sign: ${e.message}")
-            SignResult(false, errorMessage = e.message ?: "Sign gagal")
+            AppLogger.log("ERROR sign: ${e.message}
+${e.stackTraceToString()}")
+            SignResult(false, errorMessage = e.message ?: "Signing failed")
         }
     }
 
@@ -231,10 +234,10 @@ class GpgExecutor(private val context: Context) {
         AppLogger.log("DEBUG: encrypt() recipients=${recipientFingerprints.size} armor=$armor")
         return try {
             val pubRings = loadPublicKeyring()
-                ?: return EncryptResult(false, errorMessage = "Keyring kosong")
+                ?: return EncryptResult(false, errorMessage = "Keyring is empty")
             val encKeys = recipientFingerprints.map { fp ->
                 findEncryptionKey(pubRings, fp)
-                    ?: return EncryptResult(false, errorMessage = "Encryption key tidak ditemukan: $fp")
+                    ?: return EncryptResult(false, errorMessage = "Encryption key not found: $fp")
             }
             val ext = if (armor) ".asc" else ".gpg"
             val outFile = File(context.cacheDir, dataFile.name + ext)
@@ -259,8 +262,9 @@ class GpgExecutor(private val context: Context) {
             AppLogger.log("DEBUG: encrypt() output=${outFile.absolutePath}")
             EncryptResult(success = true, outputPath = outFile.absolutePath)
         } catch (e: Exception) {
-            AppLogger.log("ERROR encrypt: ${e.message}")
-            EncryptResult(false, errorMessage = e.message ?: "Encrypt gagal")
+            AppLogger.log("ERROR encrypt: ${e.message}
+${e.stackTraceToString()}")
+            EncryptResult(false, errorMessage = e.message ?: "Encryption failed")
         }
     }
 
@@ -297,8 +301,9 @@ class GpgExecutor(private val context: Context) {
             AppLogger.log("DEBUG: encryptSymmetric() output=${outFile.absolutePath}")
             EncryptResult(success = true, outputPath = outFile.absolutePath)
         } catch (e: Exception) {
-            AppLogger.log("ERROR encryptSymmetric: ${e.message}")
-            EncryptResult(false, errorMessage = e.message ?: "Encrypt simetris gagal")
+            AppLogger.log("ERROR encryptSymmetric: ${e.message}
+${e.stackTraceToString()}")
+            EncryptResult(false, errorMessage = e.message ?: "Symmetric encryption failed")
         }
     }
 
@@ -317,7 +322,7 @@ class GpgExecutor(private val context: Context) {
                 if (encData == null) nextObj = factory.nextObject()
             }
             if (encData == null)
-                return DecryptResult(false, errorMessage = "File bukan data terenkripsi GPG")
+                return DecryptResult(false, errorMessage = "File is not GPG encrypted data")
 
             val secRings = loadSecretKeyring()
             var plainStream: InputStream? = null
@@ -361,13 +366,13 @@ class GpgExecutor(private val context: Context) {
                 return DecryptResult(
                     false,
                     errorMessage = if (secRings == null)
-                        "Tidak ada secret key di keyring dan tidak ada passphrase simetris yang cocok"
+                        "No matching secret key in keyring and no matching symmetric passphrase"
                     else
-                        "Tidak ada secret key yang cocok atau passphrase salah"
+                        "No matching secret key or incorrect passphrase"
                 )
 
             val litData = unwrapToLiteralData(plainStream)
-                ?: return DecryptResult(false, errorMessage = "Struktur data GPG tidak valid")
+                ?: return DecryptResult(false, errorMessage = "Invalid GPG data structure")
 
             val outName = litData.fileName.ifBlank {
                 dataFile.name.removeSuffix(".gpg").removeSuffix(".asc")
@@ -377,8 +382,9 @@ class GpgExecutor(private val context: Context) {
             AppLogger.log("DEBUG: decrypt() output=${outFile.absolutePath}")
             DecryptResult(success = true, outputPath = outFile.absolutePath)
         } catch (e: Exception) {
-            AppLogger.log("ERROR decrypt: ${e.message}")
-            DecryptResult(false, errorMessage = e.message ?: "Decrypt gagal")
+            AppLogger.log("ERROR decrypt: ${e.message}
+${e.stackTraceToString()}")
+            DecryptResult(false, errorMessage = e.message ?: "Decryption failed")
         }
     }
 
@@ -479,18 +485,19 @@ class GpgExecutor(private val context: Context) {
             AppLogger.log("DEBUG: generateKey() success uid=$uid")
             GpgOperationResult.Success("Key generated: $uid")
         } catch (e: Exception) {
-            AppLogger.log("ERROR generateKey: ${e.message}")
+            AppLogger.log("ERROR generateKey: ${e.message}
+${e.stackTraceToString()}")
             AppLogger.log("ERROR generateKey cause: ${e.cause?.message}")
             AppLogger.log("ERROR generateKey class: ${e.javaClass.name}")
             AppLogger.log("ERROR generateKey stack: ${e.stackTrace.take(5).joinToString(" | ") { "${it.className}.${it.methodName}:${it.lineNumber}" }}")
-            GpgOperationResult.Failure(e.message ?: "Key generation gagal")
+            GpgOperationResult.Failure(e.message ?: "Key generation failed")
         }
     }
 
     // ── List Keys ────────────────────────────────────────────────────────────
 
     fun listKeys(): List<GpgKey> {
-        AppLogger.log("DEBUG: listKeys() dipanggil")
+        AppLogger.log("DEBUG: listKeys() called")
         return loadPublicKeyring()?.map { ring ->
             val pub = ring.publicKey
             val fp  = bytesToHex(pub.fingerprint)
@@ -527,15 +534,16 @@ class GpgExecutor(private val context: Context) {
     // ── Import ───────────────────────────────────────────────────────────────
 
     fun importKey(keyFile: File): GpgOperationResult {
-        AppLogger.log("DEBUG: importKey() dari ${keyFile.absolutePath}")
+        AppLogger.log("DEBUG: importKey() from ${keyFile.absolutePath}")
         return try {
             val pub = tryImportPublicKeys(keyFile.inputStream())
             val sec = tryImportSecretKeys(keyFile.inputStream())
-            if (pub + sec == 0) GpgOperationResult.Failure("Tidak ada key yang valid ditemukan")
-            else GpgOperationResult.Success("$pub public, $sec secret key diimport")
+            if (pub + sec == 0) GpgOperationResult.Failure("No valid key found")
+            else GpgOperationResult.Success("$pub public, $sec secret key(s) imported")
         } catch (e: Exception) {
-            AppLogger.log("ERROR importKey: ${e.message}")
-            GpgOperationResult.Failure(e.message ?: "Import gagal")
+            AppLogger.log("ERROR importKey: ${e.message}
+${e.stackTraceToString()}")
+            GpgOperationResult.Failure(e.message ?: "Import failed")
         }
     }
 
@@ -568,13 +576,14 @@ class GpgExecutor(private val context: Context) {
             AppLogger.log("DEBUG: Keyserver upload response: $responseCode")
 
             if (responseCode in 200..299) {
-                GpgOperationResult.Success("Key berhasil diupload ke $keyserver")
+                GpgOperationResult.Success("Key successfully uploaded to $keyserver")
             } else {
                 GpgOperationResult.Failure("Keyserver error HTTP $responseCode")
             }
         } catch (e: Exception) {
-            AppLogger.log("ERROR exportKeyToKeyserver: ${e.message}")
-            GpgOperationResult.Failure(e.message ?: "Upload ke keyserver gagal")
+            AppLogger.log("ERROR exportKeyToKeyserver: ${e.message}
+${e.stackTraceToString()}")
+            GpgOperationResult.Failure(e.message ?: "Keyserver upload failed")
         }
     }
 
@@ -591,12 +600,13 @@ class GpgExecutor(private val context: Context) {
             conn.setRequestProperty("User-Agent", "GPGVerifier/1.0")
             val responseCode = conn.responseCode
             if (responseCode != 200)
-                return GpgOperationResult.Failure("Keyserver error HTTP $responseCode — key tidak ditemukan")
+                return GpgOperationResult.Failure("Keyserver HTTP error $responseCode — key not found")
             val count = tryImportPublicKeys(conn.inputStream)
-            GpgOperationResult.Success("$count key diimport dari $keyserver")
+            GpgOperationResult.Success("$count key(s) imported from $keyserver")
         } catch (e: Exception) {
-            AppLogger.log("ERROR importKeyFromKeyserver: ${e.message}")
-            GpgOperationResult.Failure(e.message ?: "Import dari keyserver gagal")
+            AppLogger.log("ERROR importKeyFromKeyserver: ${e.message}
+${e.stackTraceToString()}")
+            GpgOperationResult.Failure(e.message ?: "Keyserver import failed")
         }
     }
 
@@ -610,9 +620,9 @@ class GpgExecutor(private val context: Context) {
             else mutableListOf()
             lines.add("${fingerprint.uppercase()}:$trustLevel")
             trustFile.writeText(lines.joinToString("\n"))
-            GpgOperationResult.Success("Trust level diset ke $trustLevel")
+            GpgOperationResult.Success("Trust level set to $trustLevel")
         } catch (e: Exception) {
-            GpgOperationResult.Failure(e.message ?: "Gagal set trust")
+            GpgOperationResult.Failure(e.message ?: "Failed to set trust level")
         }
     }
 
@@ -628,9 +638,9 @@ class GpgExecutor(private val context: Context) {
                 ?.let { saveSecretKeyring(it) }
             if (trustFile.exists())
                 trustFile.writeText(trustFile.readLines().filter { !it.startsWith(fp) }.joinToString("\n"))
-            GpgOperationResult.Success("Key dihapus")
+            GpgOperationResult.Success("Key deleted")
         } catch (e: Exception) {
-            GpgOperationResult.Failure(e.message ?: "Gagal hapus key")
+            GpgOperationResult.Failure(e.message ?: "Failed to delete key")
         }
     }
 
@@ -644,15 +654,15 @@ class GpgExecutor(private val context: Context) {
             val out: OutputStream = if (armor) armoredOut(bout) else bout
             if (secret) {
                 loadSecretKeyring()?.firstOrNull { bytesToHex(it.secretKey.publicKey.fingerprint) == fp }
-                    ?.encode(out) ?: return GpgOperationResult.Failure("Secret key tidak ditemukan")
+                    ?.encode(out) ?: return GpgOperationResult.Failure("Secret key not found")
             } else {
                 loadPublicKeyring()?.firstOrNull { bytesToHex(it.publicKey.fingerprint) == fp }
-                    ?.encode(out) ?: return GpgOperationResult.Failure("Public key tidak ditemukan")
+                    ?.encode(out) ?: return GpgOperationResult.Failure("Public key not found")
             }
             if (armor) (out as ArmoredOutputStream).close()
             GpgOperationResult.Success(bout.toString())
         } catch (e: Exception) {
-            GpgOperationResult.Failure(e.message ?: "Export gagal")
+            GpgOperationResult.Failure(e.message ?: "Export failed")
         }
     }
 
@@ -664,7 +674,8 @@ class GpgExecutor(private val context: Context) {
             PGPPublicKeyRingCollection(
                 FileInputStream(publicKeyringFile), BcKeyFingerprintCalculator()
             ).keyRings.asSequence().toList()
-        } catch (e: Exception) { AppLogger.log("ERROR loadPublicKeyring: ${e.message}"); null }
+        } catch (e: Exception) { AppLogger.log("ERROR loadPublicKeyring: ${e.message}
+${e.stackTraceToString()}"); null }
     }
 
     private fun loadSecretKeyring(): List<PGPSecretKeyRing>? {
@@ -673,7 +684,8 @@ class GpgExecutor(private val context: Context) {
             PGPSecretKeyRingCollection(
                 FileInputStream(secretKeyringFile), BcKeyFingerprintCalculator()
             ).keyRings.asSequence().toList()
-        } catch (e: Exception) { AppLogger.log("ERROR loadSecretKeyring: ${e.message}"); null }
+        } catch (e: Exception) { AppLogger.log("ERROR loadSecretKeyring: ${e.message}
+${e.stackTraceToString()}"); null }
     }
 
     private fun savePublicKeyring(rings: List<PGPPublicKeyRing>) {
@@ -731,7 +743,8 @@ class GpgExecutor(private val context: Context) {
                 obj = factory.nextObject()
             }
             sigs
-        } catch (e: Exception) { AppLogger.log("ERROR loadSignatures: ${e.message}"); sigs }
+        } catch (e: Exception) { AppLogger.log("ERROR loadSignatures: ${e.message}
+${e.stackTraceToString()}"); sigs }
     }
 
     private fun findPublicKey(rings: List<PGPPublicKeyRing>, keyId: Long): PGPPublicKey? {

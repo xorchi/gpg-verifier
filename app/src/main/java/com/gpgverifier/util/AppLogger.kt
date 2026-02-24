@@ -9,7 +9,7 @@ import java.util.*
 /**
  * Logger internal aplikasi.
  * - Debug  : logcat + file privat di filesDir/logs/app.log
- * - Release: hanya logcat — tidak ada file di storage publik
+ * - Release: logcat only — no file written to public storage
  *
  * Tidak memerlukan izin storage apapun. Aman di Android 11+.
  * Panggil AppLogger.init(filesDir) sekali dari MainActivity.
@@ -44,7 +44,7 @@ object AppLogger {
         }
     }
 
-    fun readLogs(): String = logFile?.takeIf { it.exists() }?.readText() ?: "(log kosong)"
+    fun readLogs(): String = logFile?.takeIf { it.exists() }?.readText() ?: "(log empty)"
 
     fun clearLogs() { logFile?.delete(); logFile?.createNewFile() }
 

@@ -153,7 +153,7 @@ fun SignTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope, s
                 Text("Sign", fontWeight = FontWeight.Bold)
             }
 
-            outputPath?.let { SuccessCard("Signed file berhasil dibuat.", outputPath = it) }
+            outputPath?.let { SuccessCard("Signed file created successfully.", outputPath = it) }
         }
     }
 }
@@ -241,7 +241,7 @@ fun EncryptTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope
                 Text("Encrypt", fontWeight = FontWeight.Bold)
             }
 
-            outputPath?.let { SuccessCard("Encrypted file berhasil dibuat.", outputPath = it) }
+            outputPath?.let { SuccessCard("Encrypted file created successfully.", outputPath = it) }
         }
     }
 }
@@ -324,7 +324,7 @@ fun SymmetricEncryptTab(repo: KeyringRepository, scope: kotlinx.coroutines.Corou
                 Text("Encrypt (Symmetric)", fontWeight = FontWeight.Bold)
             }
 
-            outputPath?.let { SuccessCard("Encrypted file berhasil dibuat.", outputPath = it) }
+            outputPath?.let { SuccessCard("Encrypted file created successfully.", outputPath = it) }
         }
     }
 }

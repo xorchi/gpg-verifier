@@ -44,7 +44,7 @@ fun DecryptScreen(modifier: Modifier = Modifier) {
         val destUri = actResult.data?.data ?: return@rememberLauncherForActivityResult
         val srcPath = result?.outputPath ?: return@rememberLauncherForActivityResult
         val ok = FileShareHelper.copyToUri(context, srcPath, destUri)
-        snackMsg = if (ok) "✓ File berhasil disimpan" else "✗ Gagal menyimpan file"
+        snackMsg = if (ok) "✓ File saved successfully" else "✗ Failed to save file"
     }
 
     Scaffold(
@@ -148,7 +148,7 @@ fun DecryptScreen(modifier: Modifier = Modifier) {
                         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Cancel, null, tint = MaterialTheme.colorScheme.error)
                             Spacer(Modifier.width(8.dp))
-                            Text(res.errorMessage ?: "Decrypt gagal",
+                            Text(res.errorMessage ?: "Decryption failed",
                                 color = MaterialTheme.colorScheme.onErrorContainer)
                         }
                     }

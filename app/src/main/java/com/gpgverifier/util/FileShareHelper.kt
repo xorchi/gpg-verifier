@@ -19,7 +19,7 @@ object FileShareHelper {
     fun shareFile(context: Context, filePath: String) {
         val file = File(filePath)
         if (!file.exists()) {
-            AppLogger.log("WARN: shareFile — file tidak ditemukan: $filePath")
+            AppLogger.log("WARN: shareFile — file not found: $filePath")
             return
         }
         val uri: Uri = FileProvider.getUriForFile(
@@ -41,7 +41,7 @@ object FileShareHelper {
      * Hanya tersedia di Android 9 ke bawah atau jika izin WRITE_EXTERNAL_STORAGE diberikan.
      * Di Android 10+ gunakan [shareFile] atau SAF (ACTION_CREATE_DOCUMENT).
      *
-     * Mengembalikan path tujuan jika berhasil, null jika gagal.
+     * Returns destination path if successful, null if failed.
      */
     fun saveToDownloads(context: Context, filePath: String): String? {
         return try {
@@ -51,7 +51,7 @@ object FileShareHelper {
             downloadsDir.mkdirs()
             val dest = File(downloadsDir, src.name)
             FileInputStream(src).use { ins -> FileOutputStream(dest).use { ins.copyTo(it) } }
-            AppLogger.log("INFO: saveToDownloads — disimpan ke ${dest.absolutePath}")
+            AppLogger.log("INFO: saveToDownloads — saved to ${dest.absolutePath}")
             dest.absolutePath
         } catch (e: Exception) {
             AppLogger.log("ERROR saveToDownloads: ${e.message}")
@@ -86,7 +86,7 @@ object FileShareHelper {
             context.contentResolver.openOutputStream(destUri)?.use { out ->
                 src.inputStream().use { it.copyTo(out) }
             }
-            AppLogger.log("INFO: copyToUri — berhasil menyalin ${src.name}")
+            AppLogger.log("INFO: copyToUri — successfully copied ${src.name}")
             true
         } catch (e: Exception) {
             AppLogger.log("ERROR copyToUri: ${e.message}")
