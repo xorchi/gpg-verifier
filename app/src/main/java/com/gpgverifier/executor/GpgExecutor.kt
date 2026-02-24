@@ -281,7 +281,7 @@ class GpgExecutor(private val context: Context) {
             ).apply {
                 addMethod(org.bouncycastle.openpgp.operator.bc.BcPBEKeyEncryptionMethodGenerator(
                     passphrase.toCharArray(),
-                    org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider()
+                    HashAlgorithmTags.SHA256
                 ))
             }
 
