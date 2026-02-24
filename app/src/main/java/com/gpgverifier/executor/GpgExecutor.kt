@@ -19,7 +19,7 @@ import java.util.*
 
 private fun armoredOut(out: java.io.OutputStream): ArmoredOutputStream {
     val aos = ArmoredOutputStream(out)
-    aos.resetHeaders()  // hapus semua header default termasuk "Version: BC"
+    aos.setHeader("Version", null)   // hapus header Version dari output armor
     return aos
 }
 
@@ -795,7 +795,8 @@ class GpgExecutor(private val context: Context) {
         for (line in text.lines()) {
             if (line.startsWith("-----BEGIN PGP")) { inBlock = true; sb.clear() }
             if (inBlock) {
-                sb.appendLine(line)
+                sb.append(line).append('
+')
                 if (line.startsWith("-----END PGP")) { blocks.add(sb.toString()); inBlock = false }
             }
         }
@@ -812,7 +813,7 @@ class GpgExecutor(private val context: Context) {
             for (block in blocks) {
                 try {
                     val col = PGPPublicKeyRingCollection(
-                        PGPUtil.getDecoderStream(block.byteInputStream()),
+                        PGPUtil.getDecoderStream(block.byteInputStream(Charsets.UTF_8)),
                         org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator()
                     )
                     for (ring in col.keyRings) {
@@ -820,11 +821,16 @@ class GpgExecutor(private val context: Context) {
                         if (!existing.containsKey(fp)) count++
                         existing[fp] = ring
                     }
-                } catch (e: Exception) { /* skip blok tidak valid */ }
+                } catch (e: Exception) {
+                    AppLogger.log("WARN tryImportPublicKeys block: ${e.message}")
+                }
             }
             if (existing.isNotEmpty()) savePublicKeyring(existing.values.toList())
             count
-        } catch (e: Exception) { 0 }
+        } catch (e: Exception) {
+            AppLogger.log("ERROR tryImportPublicKeys: ${e.message}")
+            0
+        }
     }
 
     private fun tryImportSecretKeys(input: InputStream): Int {
@@ -837,7 +843,7 @@ class GpgExecutor(private val context: Context) {
             for (block in blocks) {
                 try {
                     val col = PGPSecretKeyRingCollection(
-                        PGPUtil.getDecoderStream(block.byteInputStream()),
+                        PGPUtil.getDecoderStream(block.byteInputStream(Charsets.UTF_8)),
                         org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator()
                     )
                     for (ring in col.keyRings) {
@@ -845,11 +851,16 @@ class GpgExecutor(private val context: Context) {
                         if (!existing.containsKey(fp)) count++
                         existing[fp] = ring
                     }
-                } catch (e: Exception) { /* skip blok tidak valid */ }
+                } catch (e: Exception) {
+                    AppLogger.log("WARN tryImportSecretKeys block: ${e.message}")
+                }
             }
             if (existing.isNotEmpty()) saveSecretKeyring(existing.values.toList())
             count
-        } catch (e: Exception) { 0 }
+        } catch (e: Exception) {
+            AppLogger.log("ERROR tryImportSecretKeys: ${e.message}")
+            0
+        }
     }
 
     private fun loadSignatures(input: InputStream): List<PGPSignature> {
