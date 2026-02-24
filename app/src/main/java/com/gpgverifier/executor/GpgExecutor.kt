@@ -40,7 +40,7 @@ class GpgExecutor(private val context: Context) {
                 ?: return VerificationResult(false, "", "", "", "", "Keyring kosong — import public key terlebih dahulu")
             for (sig in sigs) {
                 val pubKey = findPublicKey(pubRings, sig.keyID) ?: continue
-                sig.init(JcaPGPContentVerifierBuilderProvider(), pubKey)
+                sig.init(org.bouncycastle.openpgp.operator.bc.BcPGPContentVerifierBuilderProvider(), pubKey)
                 sig.update(dataFile.readBytes())
                 val valid = sig.verify()
                 val fp  = bytesToHex(pubKey.fingerprint)
@@ -101,7 +101,7 @@ class GpgExecutor(private val context: Context) {
 
             for (sig in sigs) {
                 val pubKey = findPublicKey(pubRings, sig.keyID) ?: continue
-                sig.init(JcaPGPContentVerifierBuilderProvider(), pubKey)
+                sig.init(org.bouncycastle.openpgp.operator.bc.BcPGPContentVerifierBuilderProvider(), pubKey)
                 sig.update(canonicalText.toByteArray(Charsets.UTF_8))
                 val valid = sig.verify()
                 val fp  = bytesToHex(pubKey.fingerprint)
@@ -306,7 +306,7 @@ class GpgExecutor(private val context: Context) {
         return try {
             val rawBytes = PGPUtil.getDecoderStream(dataFile.inputStream()).readBytes()
 
-            val factory = PGPObjectFactory(rawBytes.inputStream(), JcaKeyFingerprintCalculator())
+            val factory = PGPObjectFactory(rawBytes.inputStream(), org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator())
             var encData: PGPEncryptedDataList? = null
             var nextObj: Any? = factory.nextObject()
             while (nextObj != null && encData == null) {
@@ -332,7 +332,7 @@ class GpgExecutor(private val context: Context) {
                             )
                         } catch (e: Exception) { continue }
                         plainStream = enc.getDataStream(
-                            JcePublicKeyDataDecryptorFactoryBuilder().setProvider("BC").build(privKey)
+                            org.bouncycastle.openpgp.operator.bc.BcPublicKeyDataDecryptorFactory(privKey)
                         )
                         break@outer
                     }
@@ -380,7 +380,7 @@ class GpgExecutor(private val context: Context) {
     }
 
     private fun unwrapToLiteralData(stream: InputStream): PGPLiteralData? {
-        val factory = PGPObjectFactory(stream, JcaKeyFingerprintCalculator())
+        val factory = PGPObjectFactory(stream, org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator())
         var obj = factory.nextObject()
         while (obj != null) {
             when (obj) {
@@ -644,7 +644,7 @@ class GpgExecutor(private val context: Context) {
         if (!publicKeyringFile.exists()) return null
         return try {
             PGPPublicKeyRingCollection(
-                FileInputStream(publicKeyringFile), JcaKeyFingerprintCalculator()
+                FileInputStream(publicKeyringFile), org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator()
             ).keyRings.asSequence().toList()
         } catch (e: Exception) { AppLogger.log("ERROR loadPublicKeyring: ${e.message}"); null }
     }
@@ -653,7 +653,7 @@ class GpgExecutor(private val context: Context) {
         if (!secretKeyringFile.exists()) return null
         return try {
             PGPSecretKeyRingCollection(
-                FileInputStream(secretKeyringFile), JcaKeyFingerprintCalculator()
+                FileInputStream(secretKeyringFile), org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator()
             ).keyRings.asSequence().toList()
         } catch (e: Exception) { AppLogger.log("ERROR loadSecretKeyring: ${e.message}"); null }
     }
@@ -668,7 +668,7 @@ class GpgExecutor(private val context: Context) {
 
     private fun tryImportPublicKeys(input: InputStream): Int {
         return try {
-            val col = PGPPublicKeyRingCollection(PGPUtil.getDecoderStream(input), JcaKeyFingerprintCalculator())
+            val col = PGPPublicKeyRingCollection(PGPUtil.getDecoderStream(input), org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator())
             val incoming = col.keyRings.asSequence().toList()
             val existing = loadPublicKeyring()?.associateBy { bytesToHex(it.publicKey.fingerprint) }
                 ?.toMutableMap() ?: mutableMapOf()
@@ -685,7 +685,7 @@ class GpgExecutor(private val context: Context) {
 
     private fun tryImportSecretKeys(input: InputStream): Int {
         return try {
-            val col = PGPSecretKeyRingCollection(PGPUtil.getDecoderStream(input), JcaKeyFingerprintCalculator())
+            val col = PGPSecretKeyRingCollection(PGPUtil.getDecoderStream(input), org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator())
             val incoming = col.keyRings.asSequence().toList()
             val existing = loadSecretKeyring()?.associateBy { bytesToHex(it.secretKey.publicKey.fingerprint) }
                 ?.toMutableMap() ?: mutableMapOf()
@@ -703,7 +703,7 @@ class GpgExecutor(private val context: Context) {
     private fun loadSignatures(input: InputStream): List<PGPSignature> {
         val sigs = mutableListOf<PGPSignature>()
         return try {
-            val factory = PGPObjectFactory(PGPUtil.getDecoderStream(input), JcaKeyFingerprintCalculator())
+            val factory = PGPObjectFactory(PGPUtil.getDecoderStream(input), org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator())
             var obj = factory.nextObject()
             while (obj != null) {
                 when (obj) {
