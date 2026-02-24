@@ -37,6 +37,18 @@ class GpgExecutor(private val context: Context) {
      * Jika [name] sudah ada, menambahkan suffix -1, -2, dst. sebelum ekstensi terdepan.
      * Contoh: "file.txt" → "file-1.txt" → "file-2.txt"
      */
+    // Simpan langsung ke Downloads, fallback ke cacheDir jika gagal
+    private fun saveToDownloads(name: String): File {
+        return try {
+            val dir = android.os.Environment.getExternalStoragePublicDirectory(
+                android.os.Environment.DIRECTORY_DOWNLOADS)
+            dir.mkdirs()
+            uniqueFile(dir, name)
+        } catch (e: Exception) {
+            uniqueFile(context.cacheDir, name)
+        }
+    }
+
     private fun uniqueFile(dir: File, name: String): File {
         val target = File(dir, name)
         if (!target.exists()) return target
@@ -149,8 +161,10 @@ class GpgExecutor(private val context: Context) {
             if (sigs.isEmpty())
                 return VerificationResult(false, "", "", "", "", "Tidak ada signature yang dapat diparse")
 
-            // Clearsign: verifikasi menggunakan canonical line ending (\r\n), trailing whitespace di-strip per baris
-            val canonicalText = signedText.lines().joinToString("\r\n") { it.trimEnd() }
+            // RFC 4880 §7.1: strip trailing whitespace, setiap baris diakhiri \r\n termasuk baris terakhir
+            val canonicalText = signedText.lines()
+                .joinToString("\r\n") { it.trimEnd() }
+                .trimEnd('\r', '\n') + "\r\n"
 
             for (sig in sigs) {
                 val pubKey = findPublicKey(pubRings, sig.keyID) ?: continue
@@ -219,14 +233,13 @@ class GpgExecutor(private val context: Context) {
                 org.bouncycastle.openpgp.operator.bc.BcPBESecretKeyDecryptorBuilder(org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider()).build(passphrase.toCharArray())
             )
             val ext = when (mode) {
-                SignMode.DETACH_ARMOR -> ".sig.asc"
+                SignMode.DETACH_ARMOR -> ".asc"
                 SignMode.DETACH       -> ".sig"
                 SignMode.CLEARSIGN    -> ".asc"
                 SignMode.NORMAL_ARMOR -> ".gpg.asc"
                 SignMode.NORMAL       -> ".gpg"
             }
-            // FIX penamaan: nama asli + ekstensi, dengan penanganan konflik
-            val outFile = uniqueFile(context.cacheDir, dataFile.name + ext)
+            val outFile = saveToDownloads(dataFile.name + ext)
 
             // FIX sigType: NORMAL dan NORMAL_ARMOR adalah binary signed document
             val sigType = when (mode) {
@@ -328,7 +341,7 @@ class GpgExecutor(private val context: Context) {
             }
             val ext = if (armor) ".asc" else ".gpg"
             // FIX penamaan: nama asli + ekstensi, dengan penanganan konflik
-            val outFile = uniqueFile(context.cacheDir, dataFile.name + ext)
+            val outFile = saveToDownloads(dataFile.name + ext)
             val encGen = PGPEncryptedDataGenerator(
                 org.bouncycastle.openpgp.operator.bc.BcPGPDataEncryptorBuilder(SymmetricKeyAlgorithmTags.AES_256)
                     .setWithIntegrityPacket(true)
@@ -360,7 +373,7 @@ class GpgExecutor(private val context: Context) {
         return try {
             val ext = if (armor) ".asc" else ".gpg"
             // FIX penamaan: nama asli + ekstensi, dengan penanganan konflik
-            val outFile = uniqueFile(context.cacheDir, dataFile.name + ext)
+            val outFile = saveToDownloads(dataFile.name + ext)
             val encGen = PGPEncryptedDataGenerator(
                 org.bouncycastle.openpgp.operator.bc.BcPGPDataEncryptorBuilder(SymmetricKeyAlgorithmTags.AES_256)
                     .setWithIntegrityPacket(true)
@@ -461,7 +474,7 @@ class GpgExecutor(private val context: Context) {
             // FIX penamaan decrypt: hapus ekstensi terakhir, tanpa prefix "decrypted_"
             val rawName = litData.fileName.ifBlank { decryptedName(dataFile.name) }
             val outName = decryptedName(rawName).ifBlank { rawName }
-            val outFile = uniqueFile(context.cacheDir, outName)
+            val outFile = saveToDownloads(outName)
             outFile.outputStream().use { litData.inputStream.copyTo(it) }
             AppLogger.log("DEBUG: decrypt() output=${outFile.absolutePath}")
             DecryptResult(success = true, outputPath = outFile.absolutePath)
@@ -602,8 +615,11 @@ class GpgExecutor(private val context: Context) {
     fun importKey(keyFile: File): GpgOperationResult {
         AppLogger.log("DEBUG: importKey() dari ${keyFile.absolutePath}")
         return try {
-            val pub = tryImportPublicKeys(keyFile.inputStream())
-            val sec = tryImportSecretKeys(keyFile.inputStream())
+            // Baca seluruh file ke ByteArray terlebih dahulu
+            // agar stream dapat digunakan dua kali (pubkey + seckey)
+            val bytes = keyFile.readBytes()
+            val pub = tryImportPublicKeys(bytes.inputStream())
+            val sec = tryImportSecretKeys(bytes.inputStream())
             if (pub + sec == 0) GpgOperationResult.Failure("Tidak ada key yang valid ditemukan")
             else GpgOperationResult.Success("$pub public, $sec secret key diimport")
         } catch (e: Exception) {
@@ -809,6 +825,118 @@ class GpgExecutor(private val context: Context) {
     private fun findPublicKey(rings: List<PGPPublicKeyRing>, keyId: Long): PGPPublicKey? {
         for (ring in rings) for (key in ring.publicKeys) if (key.keyID == keyId) return key
         return null
+    }
+
+    // ── Backup ───────────────────────────────────────────────────────────────
+
+    fun backupKey(fingerprint: String): GpgOperationResult {
+        return try {
+            val fp = fingerprint.uppercase()
+            val uid = loadPublicKeyring()
+                ?.firstOrNull { bytesToHex(it.publicKey.fingerprint) == fp }
+                ?.publicKey?.userIDs?.asSequence()?.firstOrNull() as? String
+                ?: fp.takeLast(8)
+            val safeName = uid.replace(Regex("[^a-zA-Z0-9_\-@.]"), "_")
+            val out = java.io.ByteArrayOutputStream()
+            val armor = armoredOut(out)
+            loadPublicKeyring()?.firstOrNull { bytesToHex(it.publicKey.fingerprint) == fp }?.encode(armor)
+            loadSecretKeyring()?.firstOrNull { bytesToHex(it.secretKey.publicKey.fingerprint) == fp }?.encode(armor)
+            armor.close()
+            val file = saveToDownloads("$safeName.asc")
+            file.writeBytes(out.toByteArray())
+            GpgOperationResult.Success("Backup disimpan: ${file.name}")
+        } catch (e: Exception) {
+            GpgOperationResult.Failure(e.message ?: "Backup gagal")
+        }
+    }
+
+    fun backupAllPublicKeys(): GpgOperationResult {
+        return try {
+            val rings = loadPublicKeyring() ?: return GpgOperationResult.Failure("Keyring kosong")
+            val out = java.io.ByteArrayOutputStream()
+            val armor = armoredOut(out)
+            rings.forEach { it.encode(armor) }
+            armor.close()
+            val file = saveToDownloads("all-pub.asc")
+            file.writeBytes(out.toByteArray())
+            GpgOperationResult.Success("${rings.size} public key disimpan ke ${file.name}")
+        } catch (e: Exception) {
+            GpgOperationResult.Failure(e.message ?: "Backup gagal")
+        }
+    }
+
+    fun backupAllSecretKeys(): GpgOperationResult {
+        return try {
+            val rings = loadSecretKeyring() ?: return GpgOperationResult.Failure("Secret keyring kosong")
+            val out = java.io.ByteArrayOutputStream()
+            val armor = armoredOut(out)
+            rings.forEach { it.encode(armor) }
+            armor.close()
+            val file = saveToDownloads("all-priv.asc")
+            file.writeBytes(out.toByteArray())
+            GpgOperationResult.Success("${rings.size} secret key disimpan ke ${file.name}")
+        } catch (e: Exception) {
+            GpgOperationResult.Failure(e.message ?: "Backup gagal")
+        }
+    }
+
+    // ── Verify Embedded Sign ─────────────────────────────────────────────────
+
+    fun verifyEmbedded(signedFile: File): VerificationResult {
+        AppLogger.log("DEBUG: verifyEmbedded() file=${signedFile.name}")
+        return try {
+            val pubRings = loadPublicKeyring()
+                ?: return VerificationResult(false, "", "", "", "", "Keyring kosong")
+            val calc = org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator()
+            val bytes = PGPUtil.getDecoderStream(signedFile.inputStream()).readBytes()
+
+            // Unwrap compressed jika ada, temukan OnePassSignatureList
+            fun nextFrom(b: ByteArray) = PGPObjectFactory(b.inputStream(), calc)
+            var obj: Any? = nextFrom(bytes).nextObject()
+            if (obj is PGPCompressedData)
+                obj = PGPObjectFactory(obj.dataStream, calc).nextObject()
+            val onePassList = obj as? PGPOnePassSignatureList
+                ?: return VerificationResult(false, "", "", "", "", "File bukan embedded signed document")
+            val ops = onePassList[0]
+
+            val pubKey = findPublicKey(pubRings, ops.keyID)
+                ?: return VerificationResult(false, "", "", "", "", "Public key tidak ditemukan di keyring")
+            ops.init(org.bouncycastle.openpgp.operator.bc.BcPGPContentVerifierBuilderProvider(), pubKey)
+
+            // Baca literal data untuk update OPS
+            val factory2 = nextFrom(bytes)
+            factory2.nextObject() // skip onepass list
+            val litObj = factory2.nextObject().let {
+                if (it is PGPCompressedData)
+                    PGPObjectFactory(it.dataStream, calc).nextObject()
+                else it
+            }
+            val litData = litObj as? PGPLiteralData
+                ?: return VerificationResult(false, "", "", "", "", "Literal data tidak ditemukan")
+            val buf = ByteArray(8192); var n: Int
+            while (litData.inputStream.read(buf).also { n = it } >= 0) ops.update(buf, 0, n)
+
+            // Baca signature list
+            val factory3 = nextFrom(bytes)
+            factory3.nextObject() // skip onepass list
+            factory3.nextObject() // skip literal data
+            val sigList = factory3.nextObject() as? PGPSignatureList
+                ?: return VerificationResult(false, "", "", "", "", "Signature list tidak ditemukan")
+            val sig = sigList[0]
+            val valid = ops.verify(sig)
+            val fp  = bytesToHex(pubKey.fingerprint)
+            val uid = (pubKey.userIDs.asSequence().firstOrNull() ?: "Unknown") as String
+            val ts  = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(sig.creationTime)
+            VerificationResult(
+                isValid = valid, signedBy = uid, fingerprint = fp,
+                timestamp = ts, trustLevel = getTrustLevel(fp),
+                rawOutput = if (valid) "Good signature from \"$uid\"" else "BAD signature",
+                errorMessage = if (!valid) "Signature tidak valid" else null
+            )
+        } catch (e: Exception) {
+            AppLogger.log("ERROR verifyEmbedded: ${e.message}")
+            VerificationResult(false, "", "", "", "", e.message ?: "Verifikasi embedded gagal")
+        }
     }
 
     private fun findEncryptionKey(rings: List<PGPPublicKeyRing>, fingerprint: String): PGPPublicKey? {

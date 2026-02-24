@@ -150,10 +150,50 @@ fun KeyringScreen(modifier: Modifier = Modifier) {
                                     uploadTargetKey = key
                                     showKeyserverUploadDialog = true
                                 },
+                                onBackup = {
+                                    scope.launch {
+                                        val r = repo.backupKey(key.fingerprint)
+                                        snackMsg = when (r) {
+                                            is GpgOperationResult.Success -> "✓ ${r.message}"
+                                            is GpgOperationResult.Failure -> "✗ ${r.error}"
+                                        }
+                                    }
+                                },
                                 onTrust = { selectedKey = key }
                             )
                         }
-                        item { Spacer(Modifier.height(120.dp)) }
+                        item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                scope.launch {
+                                    val r = repo.backupAllPublicKeys()
+                                    snackMsg = when (r) {
+                                        is GpgOperationResult.Success -> "✓ ${r.message}"
+                                        is GpgOperationResult.Failure -> "✗ ${r.error}"
+                                    }
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Backup All Pub", fontSize = 12.sp) }
+                        OutlinedButton(
+                            onClick = {
+                                scope.launch {
+                                    val r = repo.backupAllSecretKeys()
+                                    snackMsg = when (r) {
+                                        is GpgOperationResult.Success -> "✓ ${r.message}"
+                                        is GpgOperationResult.Failure -> "✗ ${r.error}"
+                                    }
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Backup All Priv", fontSize = 12.sp) }
+                    }
+                }
+        item { Spacer(Modifier.height(120.dp)) }
                     }
                 }
             }
@@ -234,6 +274,7 @@ fun KeyCard(
     key: GpgKey,
     onDelete: () -> Unit,
     onExportPublic: () -> Unit,
+    onBackup: () -> Unit,
     onExportSecret: (() -> Unit)?,
     onUploadToKeyserver: () -> Unit,
     onTrust: () -> Unit
@@ -288,6 +329,10 @@ fun KeyCard(
                     OutlinedButton(onClick = onExportPublic, modifier = Modifier.weight(1f)) {
                         Icon(Icons.Default.Share, null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp)); Text("Export Pub")
+                    }
+                    OutlinedButton(onClick = onBackup, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Default.Save, null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp)); Text("Backup")
                     }
                 }
                 Spacer(Modifier.height(4.dp))

@@ -109,6 +109,24 @@ class KeyringRepository(context: Context) {
     suspend fun exportKey(fingerprint: String, armor: Boolean = true, secret: Boolean = false): GpgOperationResult =
         withContext(Dispatchers.IO) { executor.exportKey(fingerprint, armor, secret) }
 
+    suspend fun backupKey(fingerprint: String): GpgOperationResult =
+        withContext(Dispatchers.IO) { executor.backupKey(fingerprint) }
+
+    suspend fun backupAllPublicKeys(): GpgOperationResult =
+        withContext(Dispatchers.IO) { executor.backupAllPublicKeys() }
+
+    suspend fun backupAllSecretKeys(): GpgOperationResult =
+        withContext(Dispatchers.IO) { executor.backupAllSecretKeys() }
+
+    suspend fun verifyEmbedded(uri: android.net.Uri, context: android.content.Context): VerificationResult =
+        withContext(Dispatchers.IO) {
+            val tmp = java.io.File(context.cacheDir, "embedded_${System.currentTimeMillis()}.tmp")
+            try {
+                context.contentResolver.openInputStream(uri)?.use { tmp.outputStream().use { o -> it.copyTo(o) } }
+                executor.verifyEmbedded(tmp)
+            } finally { tmp.delete() }
+        }
+
     suspend fun exportKeyToKeyserver(fingerprint: String, keyserver: String): GpgOperationResult =
         withContext(Dispatchers.IO) { executor.exportKeyToKeyserver(fingerprint, keyserver) }
 

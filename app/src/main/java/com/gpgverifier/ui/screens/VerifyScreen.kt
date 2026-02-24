@@ -36,18 +36,20 @@ fun VerifyScreen(modifier: Modifier = Modifier) {
     val scope       = rememberCoroutineScope()
     val scrollState = rememberScrollState()
 
-    // Mode: false = detached signature, true = clearsign
-    var isClearSignMode by remember { mutableStateOf(false) }
+    // Mode: 0=detached, 1=clearsign, 2=embedded
+    var verifyMode by remember { mutableStateOf(0) }
 
     var dataUri       by remember { mutableStateOf<Uri?>(null) }
     var sigUri        by remember { mutableStateOf<Uri?>(null) }
     var clearSignUri  by remember { mutableStateOf<Uri?>(null) }
+    var embeddedUri   by remember { mutableStateOf<Uri?>(null) }
     var result        by remember { mutableStateOf<VerificationResult?>(null) }
     var isLoading     by remember { mutableStateOf(false) }
     var showRawOutput by remember { mutableStateOf(false) }
 
-    val dataFilePicker      = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { dataUri = it }
-    val sigFilePicker       = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { sigUri = it }
+    val dataFilePicker     = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { dataUri = it }
+    val sigFilePicker      = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { sigUri = it }
+    val embeddedFilePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { embeddedUri = it }
     val clearSignFilePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { clearSignUri = it }
 
     Column(
@@ -78,9 +80,9 @@ fun VerifyScreen(modifier: Modifier = Modifier) {
                     )
                 }
                 Switch(
-                    checked = isClearSignMode,
+                    checked = verifyMode == 1,
                     onCheckedChange = {
-                        isClearSignMode = it
+                        verifyMode = if (it) 1 else 0
                         result = null
                         dataUri = null
                         sigUri = null
@@ -91,9 +93,21 @@ fun VerifyScreen(modifier: Modifier = Modifier) {
         }
 
         // ── File Picker berdasarkan mode ─────────────────────────────────────
-        if (isClearSignMode) {
+        // Tombol mode Embedded
+        Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+            TextButton(onClick = { verifyMode = if (verifyMode == 2) 0 else 2 }) {
+                Text(if (verifyMode == 2) "← Back to Detached" else "Switch to Embedded mode",
+                    style = MaterialTheme.typography.labelMedium)
+            }
+        }
+
+        if (verifyMode == 1) {
             FilePickerCard("ClearSign File (.asc)", clearSignUri, Icons.Default.VerifiedUser) {
                 clearSignFilePicker.launch("*/*")
+            }
+        } else if (verifyMode == 2) {
+            FilePickerCard("Embedded Signed File (.gpg / .asc)", embeddedUri, Icons.Default.VerifiedUser) {
+                embeddedFilePicker.launch("*/*")
             }
         } else {
             FilePickerCard("File to Verify", dataUri, Icons.AutoMirrored.Filled.InsertDriveFile) {
@@ -109,19 +123,29 @@ fun VerifyScreen(modifier: Modifier = Modifier) {
             onClick = {
                 scope.launch {
                     isLoading = true; result = null
-                    result = if (isClearSignMode) {
-                        val cs = clearSignUri ?: return@launch
-                        repo.verifyClearSign(cs, context)
-                    } else {
-                        val d = dataUri ?: return@launch
-                        val s = sigUri  ?: return@launch
-                        repo.verify(d, s, context)
+                    result = when (verifyMode) {
+                        1 -> {
+                            val cs = clearSignUri ?: return@launch
+                            repo.verifyClearSign(cs, context)
+                        }
+                        2 -> {
+                            val em = embeddedUri ?: return@launch
+                            repo.verifyEmbedded(em, context)
+                        }
+                        else -> {
+                            val d = dataUri ?: return@launch
+                            val s = sigUri  ?: return@launch
+                            repo.verify(d, s, context)
+                        }
                     }
                     isLoading = false
                 }
             },
-            enabled = if (isClearSignMode) clearSignUri != null && !isLoading
-                      else dataUri != null && sigUri != null && !isLoading,
+            enabled = when (verifyMode) {
+                1 -> clearSignUri != null && !isLoading
+                2 -> embeddedUri != null && !isLoading
+                else -> dataUri != null && sigUri != null && !isLoading
+            },
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
         ) {
