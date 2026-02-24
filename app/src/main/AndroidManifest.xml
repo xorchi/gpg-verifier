@@ -11,8 +11,7 @@
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="GPG Verifier"
-        android:supportsRtl="true"
-        
+        android:supportsRtl="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"
