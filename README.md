@@ -260,7 +260,8 @@ docs/xorchi-gpg-pubkey.asc
 
 **Fingerprint:**
 ```
-6E2D 739B 4140 C2DE 459F C412 B38F D0DE 141C 8358
+DD88 E7E14 A5A8 92D5 DC5D 4A44 B495 F62C BB37 CFF
+
 ```
 
 ### How to Verify
@@ -275,7 +276,7 @@ gpg --import docs/xorchi-gpg-pubkey.asc
 Or directly from a keyserver:
 ```bash
 gpg --keyserver hkps://keys.openpgp.org \
-    --recv-keys 6E2D739B4140C2DE459FC412B38FD0DE141C8358
+    --recv-keys DD88E7E14A5A892D5DC5D4A44B495F62CBB37CFF
 ```
 
 **2. Download the APK and its detached signature**
@@ -292,8 +293,8 @@ gpg --verify gpg-verifier-v*.apk.asc gpg-verifier-v*.apk
 
 **Expected output (good signature):**
 ```
-gpg: Signature made <date> using RSA key 6E2D739B4140C2DE459FC412B38FD0DE141C8358
-gpg: Good signature from "xorchi <rovikinrudiansyah@gmail.com>"
+gpg: Signature made <date> using RSA key DD88E7E14A5A892D5DC5D4A44B495F62CBB37CFF
+gpg: Good signature from "xorchi <jperkasa8@gmail.com>"
 ```
 
 > ⚠️ Any result other than `Good signature` means the file was not signed by this developer or has been modified after signing. **Do not install it.**
