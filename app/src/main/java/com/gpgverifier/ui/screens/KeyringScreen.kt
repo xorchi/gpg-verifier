@@ -159,7 +159,11 @@ fun KeyringScreen(modifier: Modifier = Modifier) {
                                         }
                                     }
                                 },
-                                onTrust = { selectedKey = key }
+                                onTrust = { selectedKey = key },
+                                onCopyFingerprint = {
+                                    clipboard.setText(AnnotatedString(key.fingerprint))
+                                    scope.launch { snackMsg = "✓ Fingerprint disalin ke clipboard" }
+                                }
                             )
                         }
                         item {
@@ -277,7 +281,8 @@ fun KeyCard(
     onBackup: () -> Unit,
     onExportSecret: (() -> Unit)?,
     onUploadToKeyserver: () -> Unit,
-    onTrust: () -> Unit
+    onTrust: () -> Unit,
+    onCopyFingerprint: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -310,9 +315,24 @@ fun KeyCard(
 
             if (expanded) {
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                Text(key.fingerprint.chunked(4).joinToString(" "),
-                    fontFamily = FontFamily.Monospace, fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        key.fingerprint.chunked(4).joinToString(" "),
+                        fontFamily = FontFamily.Monospace, fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = onCopyFingerprint, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            Icons.Default.ContentCopy, contentDescription = "Copy Fingerprint",
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
                 if (key.uids.size > 1) {
                     Spacer(Modifier.height(4.dp))
                     key.uids.drop(1).forEach { uid ->
@@ -427,14 +447,40 @@ fun KeyserverUploadDialog(key: GpgKey, onDismiss: () -> Unit, onUpload: (String)
     )
 }
 
+fun isPasswordStrong(p: String): Boolean {
+    if (p.length < 6) return false
+    if (!p.any { it.isLowerCase() }) return false
+    if (!p.any { it.isUpperCase() }) return false
+    if (!p.any { it.isDigit() }) return false
+    if (!p.any { !it.isLetterOrDigit() }) return false
+    return true
+}
+
+fun passwordHint(p: String): String {
+    if (p.isEmpty()) return "Minimal 6 karakter: huruf besar, kecil, angka, dan simbol"
+    val missing = mutableListOf<String>()
+    if (!p.any { it.isLowerCase() }) missing.add("huruf kecil")
+    if (!p.any { it.isUpperCase() }) missing.add("huruf besar")
+    if (!p.any { it.isDigit() }) missing.add("angka")
+    if (!p.any { !it.isLetterOrDigit() }) missing.add("simbol")
+    if (p.length < 6) missing.add("minimal 6 karakter")
+    return if (missing.isEmpty()) "" else "Diperlukan: ${missing.joinToString(", ")}"
+}
+
 @Composable
 fun GenerateKeyDialog(onDismiss: () -> Unit, onGenerate: (KeyGenParams) -> Unit) {
     var name       by remember { mutableStateOf("") }
     var email      by remember { mutableStateOf("") }
     var comment    by remember { mutableStateOf("") }
     var passphrase by remember { mutableStateOf("") }
+    var confirm    by remember { mutableStateOf("") }
     var keySize    by remember { mutableStateOf("4096") }
     var expiry     by remember { mutableStateOf("0") }
+
+    val passStrong   = isPasswordStrong(passphrase)
+    val passMatch    = passphrase == confirm && confirm.isNotEmpty()
+    val passHint     = passwordHint(passphrase)
+    val canGenerate  = name.isNotBlank() && email.isNotBlank() && passStrong && passMatch
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -447,10 +493,33 @@ fun GenerateKeyDialog(onDismiss: () -> Unit, onGenerate: (KeyGenParams) -> Unit)
                     label = { Text("Email *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = comment, onValueChange = { comment = it },
                     label = { Text("Comment (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = passphrase, onValueChange = { passphrase = it },
-                    label = { Text("Passphrase") }, singleLine = true,
+                OutlinedTextField(
+                    value = passphrase, onValueChange = { passphrase = it },
+                    label = { Text("Passphrase *") }, singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
-                    modifier = Modifier.fillMaxWidth())
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = passphrase.isNotEmpty() && !passStrong,
+                    supportingText = {
+                        if (passphrase.isNotEmpty() && !passStrong)
+                            Text(passHint, color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.labelSmall)
+                        else if (passphrase.isEmpty())
+                            Text("Wajib diisi", color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.labelSmall)
+                    }
+                )
+                OutlinedTextField(
+                    value = confirm, onValueChange = { confirm = it },
+                    label = { Text("Konfirmasi Passphrase *") }, singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = confirm.isNotEmpty() && !passMatch,
+                    supportingText = {
+                        if (confirm.isNotEmpty() && !passMatch)
+                            Text("Passphrase tidak cocok", color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.labelSmall)
+                    }
+                )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(value = keySize, onValueChange = { keySize = it },
                         label = { Text("Key Size") }, singleLine = true, modifier = Modifier.weight(1f))
@@ -462,7 +531,7 @@ fun GenerateKeyDialog(onDismiss: () -> Unit, onGenerate: (KeyGenParams) -> Unit)
         confirmButton = {
             TextButton(
                 onClick = {
-                    if (name.isNotBlank() && email.isNotBlank()) {
+                    if (canGenerate) {
                         onGenerate(KeyGenParams(
                             name       = name.trim(),
                             email      = email.trim(),
@@ -473,7 +542,7 @@ fun GenerateKeyDialog(onDismiss: () -> Unit, onGenerate: (KeyGenParams) -> Unit)
                         ))
                     }
                 },
-                enabled = name.isNotBlank() && email.isNotBlank()
+                enabled = canGenerate
             ) { Text("Generate") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }

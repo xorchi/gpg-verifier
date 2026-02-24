@@ -297,12 +297,13 @@ class GpgExecutor(private val context: Context) {
                 SignMode.NORMAL_ARMOR -> {
                     val bout = ByteArrayOutputStream()
                     PGPCompressedDataGenerator(PGPCompressedData.ZIP).open(bout).use { cos ->
+                        val content = dataFile.readBytes()
+                        sigGen.generateOnePassVersion(false).encode(cos)
                         PGPLiteralDataGenerator().open(cos, PGPLiteralData.BINARY,
-                            dataFile.name, dataFile.length(), Date()).use { los ->
-                            val content = dataFile.readBytes()
-                            sigGen.update(content)
+                            originalName, content.size.toLong(), Date()).use { los ->
                             los.write(content)
                         }
+                        sigGen.update(content)
                         sigGen.generate().encode(cos)
                     }
                     armoredOut(outFile.outputStream()).use { it.write(bout.toByteArray()) }
@@ -310,12 +311,13 @@ class GpgExecutor(private val context: Context) {
                 SignMode.NORMAL -> {
                     val bout = ByteArrayOutputStream()
                     PGPCompressedDataGenerator(PGPCompressedData.ZIP).open(bout).use { cos ->
+                        val content = dataFile.readBytes()
+                        sigGen.generateOnePassVersion(false).encode(cos)
                         PGPLiteralDataGenerator().open(cos, PGPLiteralData.BINARY,
-                            dataFile.name, dataFile.length(), Date()).use { los ->
-                            val content = dataFile.readBytes()
-                            sigGen.update(content)
+                            originalName, content.size.toLong(), Date()).use { los ->
                             los.write(content)
                         }
+                        sigGen.update(content)
                         sigGen.generate().encode(cos)
                     }
                     outFile.outputStream().use { it.write(bout.toByteArray()) }
@@ -352,9 +354,10 @@ class GpgExecutor(private val context: Context) {
             (if (armor) armoredOut(outFile.outputStream()) else outFile.outputStream()).use { rawOut ->
                 encGen.open(rawOut, ByteArray(1 shl 16)).use { encOut ->
                     PGPCompressedDataGenerator(PGPCompressedData.ZIP).open(encOut).use { cos ->
+                        val content = dataFile.readBytes()
                         PGPLiteralDataGenerator().open(cos, PGPLiteralData.BINARY,
-                            dataFile.name, dataFile.length(), Date()).use { los ->
-                            dataFile.inputStream().use { it.copyTo(los) }
+                            originalName, content.size.toLong(), Date()).use { los ->
+                            los.write(content)
                         }
                     }
                 }
@@ -373,8 +376,7 @@ class GpgExecutor(private val context: Context) {
         AppLogger.log("DEBUG: encryptSymmetric() file=${dataFile.name} armor=$armor")
         return try {
             val ext = if (armor) ".asc" else ".gpg"
-            // FIX penamaan: nama asli + ekstensi, dengan penanganan konflik
-            val outFile = saveToDownloads(dataFile.name + ext)
+            val outFile = saveToDownloads(originalName + ext)
             val encGen = PGPEncryptedDataGenerator(
                 org.bouncycastle.openpgp.operator.bc.BcPGPDataEncryptorBuilder(SymmetricKeyAlgorithmTags.AES_256)
                     .setWithIntegrityPacket(true)
@@ -387,9 +389,10 @@ class GpgExecutor(private val context: Context) {
             (if (armor) armoredOut(outFile.outputStream()) else outFile.outputStream()).use { rawOut ->
                 encGen.open(rawOut, ByteArray(1 shl 16)).use { encOut ->
                     PGPCompressedDataGenerator(PGPCompressedData.ZIP).open(encOut).use { cos ->
+                        val content = dataFile.readBytes()
                         PGPLiteralDataGenerator().open(cos, PGPLiteralData.BINARY,
-                            dataFile.name, dataFile.length(), Date()).use { los ->
-                            dataFile.inputStream().use { it.copyTo(los) }
+                            originalName, content.size.toLong(), Date()).use { los ->
+                            los.write(content)
                         }
                     }
                 }
@@ -682,7 +685,8 @@ class GpgExecutor(private val context: Context) {
             if (responseCode != 200)
                 return GpgOperationResult.Failure("Keyserver error HTTP $responseCode — key tidak ditemukan")
             val count = tryImportPublicKeys(conn.inputStream)
-            GpgOperationResult.Success("$count key diimport dari $keyserver")
+            val msg = if (count == 0) "Key sudah ada di keyring (tidak ada key baru)" else "$count key diimport dari $keyserver"
+            GpgOperationResult.Success(msg)
         } catch (e: Exception) {
             AppLogger.log("ERROR importKeyFromKeyserver: ${e.message}")
             GpgOperationResult.Failure(e.message ?: "Import dari keyserver gagal")
@@ -773,36 +777,66 @@ class GpgExecutor(private val context: Context) {
         PGPSecretKeyRingCollection(rings).encode(FileOutputStream(secretKeyringFile))
     }
 
+    private fun extractArmorBlocks(text: String): List<String> {
+        val blocks = mutableListOf<String>()
+        val sb = StringBuilder()
+        var inBlock = false
+        for (line in text.lines()) {
+            if (line.startsWith("-----BEGIN PGP")) { inBlock = true; sb.clear() }
+            if (inBlock) {
+                sb.appendLine(line)
+                if (line.startsWith("-----END PGP")) { blocks.add(sb.toString()); inBlock = false }
+            }
+        }
+        return blocks
+    }
+
     private fun tryImportPublicKeys(input: InputStream): Int {
         return try {
-            val col = PGPPublicKeyRingCollection(PGPUtil.getDecoderStream(input), org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator())
-            val incoming = col.keyRings.asSequence().toList()
+            val text = input.readBytes().toString(Charsets.UTF_8)
+            val blocks = extractArmorBlocks(text).filter { it.contains("PUBLIC KEY") }
             val existing = loadPublicKeyring()?.associateBy { bytesToHex(it.publicKey.fingerprint) }
                 ?.toMutableMap() ?: mutableMapOf()
             var count = 0
-            for (ring in incoming) {
-                val fp = bytesToHex(ring.publicKey.fingerprint)
-                if (!existing.containsKey(fp)) count++
-                existing[fp] = ring
+            for (block in blocks) {
+                try {
+                    val col = PGPPublicKeyRingCollection(
+                        PGPUtil.getDecoderStream(block.byteInputStream()),
+                        org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator()
+                    )
+                    for (ring in col.keyRings) {
+                        val fp = bytesToHex(ring.publicKey.fingerprint)
+                        if (!existing.containsKey(fp)) count++
+                        existing[fp] = ring
+                    }
+                } catch (e: Exception) { /* skip blok tidak valid */ }
             }
-            savePublicKeyring(existing.values.toList())
+            if (existing.isNotEmpty()) savePublicKeyring(existing.values.toList())
             count
         } catch (e: Exception) { 0 }
     }
 
     private fun tryImportSecretKeys(input: InputStream): Int {
         return try {
-            val col = PGPSecretKeyRingCollection(PGPUtil.getDecoderStream(input), org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator())
-            val incoming = col.keyRings.asSequence().toList()
+            val text = input.readBytes().toString(Charsets.UTF_8)
+            val blocks = extractArmorBlocks(text).filter { it.contains("PRIVATE KEY") || it.contains("SECRET KEY") }
             val existing = loadSecretKeyring()?.associateBy { bytesToHex(it.secretKey.publicKey.fingerprint) }
                 ?.toMutableMap() ?: mutableMapOf()
             var count = 0
-            for (ring in incoming) {
-                val fp = bytesToHex(ring.secretKey.publicKey.fingerprint)
-                if (!existing.containsKey(fp)) count++
-                existing[fp] = ring
+            for (block in blocks) {
+                try {
+                    val col = PGPSecretKeyRingCollection(
+                        PGPUtil.getDecoderStream(block.byteInputStream()),
+                        org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator()
+                    )
+                    for (ring in col.keyRings) {
+                        val fp = bytesToHex(ring.secretKey.publicKey.fingerprint)
+                        if (!existing.containsKey(fp)) count++
+                        existing[fp] = ring
+                    }
+                } catch (e: Exception) { /* skip blok tidak valid */ }
             }
-            saveSecretKeyring(existing.values.toList())
+            if (existing.isNotEmpty()) saveSecretKeyring(existing.values.toList())
             count
         } catch (e: Exception) { 0 }
     }
