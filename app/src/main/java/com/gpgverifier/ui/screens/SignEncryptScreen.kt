@@ -7,8 +7,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -83,7 +85,7 @@ fun SignTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope, s
         ) {
             Text("Sign File", style = MaterialTheme.typography.titleMedium)
 
-            FilePickerCard("Input File", inputUri, Icons.Default.InsertDriveFile) { filePicker.launch("*/*") }
+            FilePickerCard("Input File", inputUri, Icons.AutoMirrored.Filled.InsertDriveFile) { filePicker.launch("*/*") }
 
             if (secretKeys.isEmpty()) {
                 Card(modifier = Modifier.fillMaxWidth()) {
@@ -115,7 +117,7 @@ fun SignTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope, s
                     readOnly = true,
                     label = { Text("Mode") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(modeExpanded) },
-                    modifier = Modifier.fillMaxWidth().menuAnchor()
+                    modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable)
                 )
                 ExposedDropdownMenu(expanded = modeExpanded, onDismissRequest = { modeExpanded = false }) {
                     modes.forEach { (mode, label) ->
@@ -185,7 +187,7 @@ fun EncryptTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope
             Text("Enkripsi dengan public key penerima.", style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
 
-            FilePickerCard("Input File", inputUri, Icons.Default.InsertDriveFile) { filePicker.launch("*/*") }
+            FilePickerCard("Input File", inputUri, Icons.AutoMirrored.Filled.InsertDriveFile) { filePicker.launch("*/*") }
 
             if (publicKeys.isEmpty()) {
                 Card(modifier = Modifier.fillMaxWidth()) {
@@ -275,7 +277,7 @@ fun SymmetricEncryptTab(repo: KeyringRepository, scope: kotlinx.coroutines.Corou
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
 
-            FilePickerCard("Input File", inputUri, Icons.Default.InsertDriveFile) { filePicker.launch("*/*") }
+            FilePickerCard("Input File", inputUri, Icons.AutoMirrored.Filled.InsertDriveFile) { filePicker.launch("*/*") }
 
             OutlinedTextField(
                 value = passphrase, onValueChange = { passphrase = it },

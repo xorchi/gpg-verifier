@@ -13,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -95,7 +96,7 @@ fun VerifyScreen(modifier: Modifier = Modifier) {
                 clearSignFilePicker.launch("*/*")
             }
         } else {
-            FilePickerCard("File to Verify", dataUri, Icons.Default.InsertDriveFile) {
+            FilePickerCard("File to Verify", dataUri, Icons.AutoMirrored.Filled.InsertDriveFile) {
                 dataFilePicker.launch("*/*")
             }
             FilePickerCard("Signature File (.sig / .asc)", sigUri, Icons.Default.VerifiedUser) {

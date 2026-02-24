@@ -2,7 +2,6 @@ package com.gpgverifier
 
 import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -30,8 +29,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import com.gpgverifier.ui.screens.DecryptScreen
 import com.gpgverifier.ui.screens.KeyringScreen
 import com.gpgverifier.ui.screens.SignEncryptScreen
@@ -57,7 +54,8 @@ val navItems = listOf(
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (Security.getProvider("BC") == null) Security.addProvider(BouncyCastleProvider())
+        Security.removeProvider("BC")
+        Security.insertProviderAt(BouncyCastleProvider(), 1)
         AppLogger.init(filesDir)
         AppLogger.log("INFO: App started - onCreate()")
         checkAndRequestPermissions()
@@ -65,30 +63,36 @@ class MainActivity : ComponentActivity() {
         setContent { GPGVerifierTheme { MainScaffold(filesDir) } }
     }
 
+    private val permissionLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
+        val granted = grants.values.all { it }
+        AppLogger.log(if (granted) "INFO: Izin storage diberikan." else "WARN: Izin storage ditolak.")
+    }
+
+    private val allFilesLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) {
+        val ok = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && Environment.isExternalStorageManager()
+        AppLogger.log(if (ok) "INFO: Izin All Files Access diberikan." else "WARN: Izin All Files Access ditolak.")
+    }
+
     private fun checkAndRequestPermissions() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             if (!Environment.isExternalStorageManager()) {
                 AppLogger.log("INFO: Meminta izin All Files Access.")
-                startActivity(Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
-                    .apply { data = Uri.parse("package:$packageName") })
+                allFilesLauncher.launch(
+                    Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                        .apply { data = Uri.parse("package:$packageName") }
+                )
             } else {
                 AppLogger.log("INFO: Izin All Files Access sudah diberikan.")
             }
         } else {
-            val perms = mutableListOf<String>()
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
-                != PackageManager.PERMISSION_GRANTED) perms.add(Manifest.permission.READ_EXTERNAL_STORAGE)
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                != PackageManager.PERMISSION_GRANTED) perms.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-            if (perms.isNotEmpty()) ActivityCompat.requestPermissions(this, perms.toTypedArray(), 100)
-        }
-    }
-
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == 100) {
-            AppLogger.log(if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)
-                "INFO: Izin storage diberikan." else "WARN: Izin storage ditolak.")
+            permissionLauncher.launch(arrayOf(
+                Manifest.permission.READ_EXTERNAL_STORAGE,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE
+            ))
         }
     }
 }

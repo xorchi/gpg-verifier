@@ -12,7 +12,6 @@
         android:icon="@mipmap/ic_launcher"
         android:label="GPG Verifier"
         android:supportsRtl="true"
-        android:extractNativeLibs="true">
         
         <activity
             android:name=".MainActivity"
