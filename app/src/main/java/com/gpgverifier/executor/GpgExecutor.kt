@@ -442,11 +442,11 @@ class GpgExecutor(private val context: Context) {
                 PGPSignature.POSITIVE_CERTIFICATION, primaryKpg, uid,
                 sha1Calc,
                 primarySubGen.generate(), null,
-                JcaPGPContentSignerBuilder(primaryKpg.publicKey.algorithm, HashAlgorithmTags.SHA256).setProvider("BC"),
+                org.bouncycastle.openpgp.operator.bc.BcPGPContentSignerBuilder(primaryKpg.publicKey.algorithm, HashAlgorithmTags.SHA256),
                 encryptor
             ).apply {
                 addSubKey(encryptKpg, encSubGen.generate(), null,
-                    JcaPGPContentSignerBuilder(primaryKpg.publicKey.algorithm, HashAlgorithmTags.SHA256).setProvider("BC"))
+                    org.bouncycastle.openpgp.operator.bc.BcPGPContentSignerBuilder(primaryKpg.publicKey.algorithm, HashAlgorithmTags.SHA256))
             }
 
             val pubs = loadPublicKeyring()?.toMutableList() ?: mutableListOf()
