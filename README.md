@@ -1,137 +1,360 @@
 # GPG Verifier
 
-Aplikasi Android untuk memverifikasi GPG signature dan mengelola keyring.  
-Dibangun dengan Kotlin + Jetpack Compose. Build otomatis via GitHub Actions.
+An Android application for GPG cryptographic operations — verify signatures, sign files, encrypt, decrypt, and manage your keyring — all on-device.
 
-## Fitur
+Built with **Kotlin + Jetpack Compose**. Uses [Bouncy Castle](https://www.bouncycastle.org/) as the cryptographic engine. No external GPG binary required.
 
-- Verifikasi file dengan signature `.sig` / `.asc`
-- Import public key dari file atau keyserver
-- Manajemen keyring: list, delete, trust, export key
-- Raw GPG output tersedia untuk debugging
-- Dark theme, Material 3
+> **Minimum SDK:** Android 8.0 (API 26)  
+> **Build:** Automated via GitHub Actions → APK available under [Releases](../../releases)
 
 ---
 
-## Setup GitHub Actions (Wajib)
+## Table of Contents
 
-### 1. Buat Keystore untuk Signing
+- [Features](#features)
+- [Architecture](#architecture)
+- [Project Structure](#project-structure)
+- [Building the App](#building-the-app)
+- [Usage Guide](#usage-guide)
+- [Verifying a Release APK](#verifying-a-release-apk)
+- [Technical Notes](#technical-notes)
 
-Di Termux atau PC:
+---
+
+## Features
+
+| Feature | Description |
+|---|---|
+| **Verify** | Verify a detached `.sig` / `.asc` signature against the original file |
+| **Verify ClearSign** | Verify and extract the message from a clearsign `.asc` file |
+| **Sign** | Sign files using a secret key — detach armored, detach binary, clearsign, or embedded |
+| **Encrypt** | Encrypt a file to one or more recipients using their public keys |
+| **Encrypt Symmetric** | Encrypt a file with a passphrase only — no key pair required |
+| **Decrypt** | Decrypt files encrypted with a public key or a symmetric passphrase |
+| **Keyring** | Full keyring management: import, export, delete, set trust level |
+| **Key Generation** | Generate RSA key pairs (2048 / 4096 bit) with optional expiry and passphrase |
+| **Keyserver Import** | Import public keys directly from HKP/HKPS keyservers (e.g. `keys.openpgp.org`) |
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────┐
+│           Jetpack Compose UI         │
+│  VerifyScreen  SignEncryptScreen     │
+│  DecryptScreen  KeyringScreen        │
+└──────────────┬──────────────────────┘
+               │
+┌──────────────▼──────────────────────┐
+│         KeyringRepository           │
+│  (coroutine dispatcher, URI → File) │
+└──────────────┬──────────────────────┘
+               │
+┌──────────────▼──────────────────────┐
+│           GpgExecutor               │
+│  Pure Bouncy Castle implementation  │
+│  verify / sign / encrypt / decrypt  │
+│  generateKey / importKey / trustKey │
+└──────────────┬──────────────────────┘
+               │
+┌──────────────▼──────────────────────┐
+│    Internal Storage (filesDir)      │
+│  keyring/pubring.pgp                │
+│  keyring/secring.pgp                │
+│  keyring/trustdb.txt                │
+│  logs/app.log                       │
+└─────────────────────────────────────┘
+```
+
+**Key design decisions:**
+
+- All cryptographic operations are performed by Bouncy Castle (`bcpg-jdk18on` + `bcprov-jdk18on`). No shell process or native binary is spawned.
+- The Bouncy Castle provider is force-registered at position 1 via `Security.removeProvider("BC")` + `Security.insertProviderAt(...)` to prevent conflicts with Android's built-in BC provider (which is a stripped-down fork and does not support all algorithms).
+- Keyrings are stored in the app's private internal storage — no `READ_EXTERNAL_STORAGE` permission is needed for core operations.
+- File output (signed, encrypted, decrypted files) is written to `cacheDir` and shared via `FileProvider` + Android's Storage Access Framework (`ACTION_CREATE_DOCUMENT`). No legacy `WRITE_EXTERNAL_STORAGE` path.
+
+---
+
+## Project Structure
+
+```
+app/src/main/
+├── java/com/gpgverifier/
+│   ├── MainActivity.kt              # Entry point, bottom navigation, BC provider init
+│   ├── executor/
+│   │   └── GpgExecutor.kt           # All GPG operations via Bouncy Castle
+│   ├── keyring/
+│   │   └── KeyringRepository.kt     # Coroutine wrapper, URI-to-File conversion
+│   ├── model/
+│   │   └── Models.kt                # Data classes and sealed result types
+│   ├── ui/
+│   │   ├── screens/
+│   │   │   ├── VerifyScreen.kt      # Signature verification UI
+│   │   │   ├── SignEncryptScreen.kt # Sign + Encrypt tabs UI
+│   │   │   ├── DecryptScreen.kt     # Decryption UI
+│   │   │   └── KeyringScreen.kt     # Key management UI + dialogs
+│   │   └── theme/
+│   │       └── Theme.kt             # Material 3 dark color scheme
+│   └── util/
+│       ├── AppLogger.kt             # Internal logger (logcat + filesDir/logs/app.log)
+│       └── FileShareHelper.kt       # FileProvider share + SAF save helpers
+├── res/
+│   ├── xml/
+│   │   └── file_provider_paths.xml  # FileProvider path configuration
+│   ├── drawable/                    # Adaptive launcher icon
+│   └── values/
+│       ├── strings.xml
+│       └── themes.xml
+└── AndroidManifest.xml
+```
+
+---
+
+## Building the App
+
+### Prerequisites
+
+- A GitHub account with Actions enabled
+- A signing keystore (JKS format)
+
+### Step 1 — Generate a Release Keystore
+
+Run this once on your machine or in Termux:
 
 ```bash
 keytool -genkeypair \
-  -keystore my-release-key.jks \
+  -keystore release.jks \
   -alias gpgverifier \
   -keyalg RSA \
   -keysize 2048 \
-  -validity 10000
+  -validity 10000 \
+  -dname "CN=GPGVerifier, O=Personal, C=ID"
 ```
 
-### 2. Encode Keystore ke Base64
+### Step 2 — Encode the Keystore to Base64
 
 ```bash
-base64 -w 0 my-release-key.jks > keystore_b64.txt
-cat keystore_b64.txt
+base64 -w 0 release.jks
 ```
 
-### 3. Tambahkan GitHub Secrets
+Copy the output — you will need it in the next step.
 
-Buka repo → Settings → Secrets and variables → Actions → New repository secret
+### Step 3 — Add GitHub Secrets
 
-| Secret Name | Nilai |
+Navigate to your repository → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**
+
+| Secret Name | Value |
 |---|---|
-| `KEYSTORE_BASE64` | Isi dari `keystore_b64.txt` |
-| `KEYSTORE_PASSWORD` | Password keystore yang Anda buat |
-| `KEY_ALIAS` | Alias key (contoh: `gpgverifier`) |
-| `KEY_PASSWORD` | Password key (biasanya sama dengan keystore) |
+| `KEYSTORE_BASE64` | Base64-encoded output from Step 2 |
+| `KEYSTORE_PASSWORD` | The password you set for the keystore |
+| `KEY_ALIAS` | The alias you chose (e.g. `gpgverifier`) |
+| `KEY_PASSWORD` | The key password (usually same as keystore password) |
 
-### 4. Sediakan GPG Binary ARM
-
-**Cara termudah (dari Termux Anda):**
+### Step 4 — Push and Build
 
 ```bash
-# Di Termux
-cp $(which gpg) /path/to/gpg-verifier/app/src/main/assets/gpg
-
-# Lalu commit
-git add app/src/main/assets/gpg
-git commit -m "Add GPG binary for armeabi-v7a"
-git push
+git push origin master
 ```
 
-GitHub Actions akan otomatis mencoba download dari Termux repository jika binary tidak ada.
+The workflow in `.github/workflows/build.yml` will automatically:
+1. Set up JDK 17 and Android SDK
+2. Decode the keystore from secrets
+3. Build and sign the release APK
+4. Upload the APK as a workflow artifact (retained for 7 days)
 
----
+To produce a permanent GitHub Release, tag the commit:
 
-## Build & Release
-
-### Build biasa (upload artifact)
-```bash
-git push origin main
-```
-APK tersedia di Actions → artifact.
-
-### Buat release resmi
 ```bash
 git tag v1.0.0
 git push origin v1.0.0
 ```
-APK akan otomatis muncul di GitHub Releases.
 
 ---
 
-## Struktur Proyek
+## Usage Guide
 
-```
-app/src/main/
-├── assets/
-│   └── gpg                    ← Binary GPG armeabi-v7a
-├── java/com/gpgverifier/
-│   ├── MainActivity.kt        ← Entry point + navigasi
-│   ├── executor/
-│   │   └── GpgExecutor.kt     ← ProcessBuilder wrapper GPG
-│   ├── keyring/
-│   │   └── KeyringRepository.kt ← Repository layer
-│   ├── model/
-│   │   └── Models.kt          ← Data classes
-│   └── ui/
-│       ├── screens/
-│       │   ├── VerifyScreen.kt   ← UI verifikasi
-│       │   └── KeyringScreen.kt  ← UI manajemen key
-│       └── theme/
-│           └── Theme.kt       ← Material3 dark theme
-└── res/
-    ├── drawable/ic_launcher.xml
-    └── values/
-        ├── strings.xml
-        └── themes.xml
-```
+### Verify a Signature
 
----
-
-## Cara Pakai Aplikasi
-
-### Verifikasi File
-1. Tab **Verify**
-2. Pilih file yang ingin diverifikasi
-3. Pilih file signature (`.sig` atau `.asc`)
+1. Open the **Verify** tab
+2. Tap **File to Verify** → select the original file
+3. Tap **Signature File** → select the `.sig` or `.asc` file
 4. Tap **Verify Signature**
-5. Hasil muncul: ✅ VALID atau ❌ INVALID
+5. Result: ✅ VALID SIGNATURE or ❌ INVALID SIGNATURE, with signer UID, fingerprint, timestamp, and trust level
 
-### Import Key
-- Tab **Keyring** → tombol **+** → pilih file `.asc` / `.gpg`
-- Atau tap ikon cloud → import dari keyserver dengan Key ID
+### Sign a File
 
-### Set Trust Level
-- Di Keyring, expand key → tap **Trust** → pilih level
+1. Open the **Sign** tab
+2. Select the input file
+3. Choose a signing key from your secret keyring
+4. Select a signature mode:
+
+| Mode | Output | Use case |
+|---|---|---|
+| Detach armored | `.sig.asc` | Standard, human-readable, most compatible |
+| Detach binary | `.sig` | Compact binary signature |
+| Clearsign | `.asc` | Inline signature for plain-text files |
+| Embedded armored | `.gpg.asc` | Signed + compressed, armored |
+| Embedded binary | `.gpg` | Signed + compressed, binary |
+
+5. Enter the key passphrase
+6. Tap **Sign** → save or share the output file
+
+### Encrypt a File
+
+1. Open the **Encrypt** tab
+2. Select the input file
+3. Select one or more recipients from your public keyring
+4. Toggle armored (`.asc`) or binary (`.gpg`) output
+5. Tap **Encrypt** → save or share the output
+
+For passphrase-only encryption (no key pair required), use the **Sym. Encrypt** tab.
+
+### Decrypt a File
+
+1. Open the **Decrypt** tab
+2. Select the encrypted file (`.gpg` or `.asc`)
+3. Enter your passphrase
+4. Tap **Decrypt** → save or share the decrypted output
+
+Both public-key and symmetric-encrypted files are supported automatically.
+
+### Manage Keys
+
+From the **Keys** tab:
+
+- **Import from file** — tap **+**, select a `.asc` or `.gpg` key file
+- **Import from keyserver** — tap the cloud icon, enter a Key ID, fingerprint, or email
+- **Export** — expand a key card → **Export Pub** (copies armored public key to clipboard) or **Export Secret Key**
+- **Set trust** — expand a key card → **Trust** → choose a trust level (Unknown / None / Marginal / Full / Ultimate)
+- **Delete** — expand a key card → **Delete Key** (confirmation required)
+
+### Generate a Key Pair
+
+From the **Keys** tab, tap the key icon → fill in:
+
+| Field | Notes |
+|---|---|
+| Name | Your real name or alias |
+| Email | Associated email address |
+| Comment | Optional (e.g. `personal`) |
+| Key Size | 2048 or 4096 — use 4096 for stronger keys |
+| Expiry | Days until expiry, `0` = never expires |
+| Passphrase | Leave blank for no passphrase (not recommended) |
+
+Tap **Generate**. Both a primary signing key and an encryption subkey are created automatically.
 
 ---
 
-## Catatan Teknis
+## Verifying a Release APK
 
-- GPG binary diextract ke `filesDir` saat pertama kali dijalankan
-- GNUPGHOME disimpan di `filesDir/.gnupg` (private, tidak perlu permission)
-- Tidak ada koneksi internet selain saat import dari keyserver
-- Min SDK: Android 8.0 (API 26)
-- ABI: armeabi-v7a
+All official APK releases are GPG-signed by the developer. You can verify the authenticity of any release before installing it.
+
+### Developer's Public GPG Key
+
+The public key is included in this repository at:
+
+```
+docs/xorchi-gpg-pubkey.asc
+```
+
+**Fingerprint:**
+```
+6E2D 739B 4140 C2DE 459F C412 B38F D0DE 141C 8358
+```
+
+### How to Verify
+
+**1. Import the developer's public key**
+
+From the repository file:
+```bash
+gpg --import docs/xorchi-gpg-pubkey.asc
+```
+
+Or directly from a keyserver:
+```bash
+gpg --keyserver hkps://keys.openpgp.org \
+    --recv-keys 6E2D739B4140C2DE459FC412B38FD0DE141C8358
+```
+
+**2. Download the APK and its detached signature**
+
+From the [Releases](../../releases) page, download both files:
+- `gpg-verifier-v*.apk`
+- `gpg-verifier-v*.apk.asc`
+
+**3. Run the verification**
+
+```bash
+gpg --verify gpg-verifier-v*.apk.asc gpg-verifier-v*.apk
+```
+
+**Expected output (good signature):**
+```
+gpg: Signature made <date> using RSA key 6E2D739B4140C2DE459FC412B38FD0DE141C8358
+gpg: Good signature from "xorchi <rovikinrudiansyah@gmail.com>"
+```
+
+> ⚠️ Any result other than `Good signature` means the file was not signed by this developer or has been modified after signing. **Do not install it.**
+
+---
+
+## Technical Notes
+
+### Bouncy Castle Provider Conflict
+
+Android ships a stripped-down fork of Bouncy Castle registered under the name `"BC"`. Calling `Security.addProvider(new BouncyCastleProvider())` is silently ignored when that name is already taken, causing `NoSuchAlgorithmException` and `KeyFactory` errors at runtime on Android P+.
+
+This app resolves the conflict explicitly:
+
+```kotlin
+Security.removeProvider("BC")
+Security.insertProviderAt(BouncyCastleProvider(), 1)
+```
+
+This ensures the full Bouncy Castle library is active for all cryptographic operations.
+
+### Key Storage
+
+All keyring data is stored in the app's private internal storage, inaccessible to other apps:
+
+| Path | Contents |
+|---|---|
+| `filesDir/keyring/pubring.pgp` | Public key ring collection |
+| `filesDir/keyring/secring.pgp` | Secret key ring collection |
+| `filesDir/keyring/trustdb.txt` | Per-fingerprint trust level assignments |
+
+### Output File Handling
+
+Operation outputs are written to `cacheDir` and surfaced to the user via:
+- **Share** — Android share sheet via `FileProvider` (no storage permission required)
+- **Save** — `ACTION_CREATE_DOCUMENT` (SAF), user selects destination folder
+
+### Logging
+
+Logs are written to `filesDir/logs/app.log` (app-private, no storage permission required) and mirrored to logcat under the tag `GPGVerifier`. The log file auto-rotates at 512 KB. Nothing is written to public storage (`/sdcard/Download` or similar).
+
+### Permissions
+
+| Permission | When used |
+|---|---|
+| `INTERNET` | Keyserver import only |
+| `MANAGE_EXTERNAL_STORAGE` (Android 11+) | Optional — only if user opens files from arbitrary locations |
+| `READ/WRITE_EXTERNAL_STORAGE` (≤ API 28) | Legacy file access for older devices |
+
+### Dependencies
+
+| Library | Version | Purpose |
+|---|---|---|
+| `bcpg-jdk18on` | 1.78.1 | OpenPGP packet layer |
+| `bcprov-jdk18on` | 1.78.1 | Cryptographic provider |
+| `androidx.compose.bom` | 2024.10.00 | Jetpack Compose UI |
+| `androidx.navigation.compose` | 2.8.3 | In-app navigation |
+| `androidx.documentfile` | 1.0.1 | SAF file access |
+
+---
+
+## License
+
+This project is licensed under the terms of the [LICENSE](LICENSE) file included in this repository.
