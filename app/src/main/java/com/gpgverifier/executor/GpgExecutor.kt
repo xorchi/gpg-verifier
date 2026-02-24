@@ -5,9 +5,6 @@ import com.gpgverifier.model.*
 import com.gpgverifier.util.AppLogger
 import org.bouncycastle.bcpg.ArmoredOutputStream
 
-// Factory: buat ArmoredOutputStream tanpa version header (@RELEASE_NAME@ placeholder)
-private fun armoredOut(out: java.io.OutputStream): ArmoredOutputStream =
-    ArmoredOutputStream(out).also { it.setHeader("Version", null) }
 import org.bouncycastle.bcpg.HashAlgorithmTags
 import org.bouncycastle.bcpg.SymmetricKeyAlgorithmTags
 import org.bouncycastle.bcpg.sig.KeyFlags
@@ -21,6 +18,11 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 class GpgExecutor(private val context: Context) {
+
+    // Factory: buat ArmoredOutputStream tanpa version header (@RELEASE_NAME@ placeholder)
+    private fun armoredOut(out: java.io.OutputStream): ArmoredOutputStream =
+        ArmoredOutputStream(out).also { it.setHeader("Version", null) }
+
 
     private val keyringDir: File by lazy {
         File(context.filesDir, "keyring").also { it.mkdirs() }
