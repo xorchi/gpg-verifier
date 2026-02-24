@@ -68,13 +68,20 @@ fun VerifyScreen(modifier: Modifier = Modifier) {
             ) {
                 Column {
                     Text(
-                        if (isClearSignMode) "Mode: ClearSign" else "Mode: Detached Signature",
+                        when (verifyMode) {
+                            1 -> "Mode: ClearSign"
+                            2 -> "Mode: Embedded"
+                            else -> "Mode: Detached Signature"
+                        },
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Medium
                     )
                     Text(
-                        if (isClearSignMode) "Satu file .asc berisi teks + signature"
-                        else "File data + file signature terpisah",
+                        when (verifyMode) {
+                            1 -> "Satu file .asc berisi teks + signature"
+                            2 -> "File .gpg/.asc berisi data + signature sekaligus"
+                            else -> "File data + file signature terpisah"
+                        },
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )

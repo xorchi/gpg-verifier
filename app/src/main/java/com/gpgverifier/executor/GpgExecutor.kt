@@ -836,7 +836,7 @@ class GpgExecutor(private val context: Context) {
                 ?.firstOrNull { bytesToHex(it.publicKey.fingerprint) == fp }
                 ?.publicKey?.userIDs?.asSequence()?.firstOrNull() as? String
                 ?: fp.takeLast(8)
-            val safeName = uid.replace(Regex("[^a-zA-Z0-9_\-@.]"), "_")
+            val safeName = uid.replace(Regex("[^a-zA-Z0-9_\\-@.]"), "_")
             val out = java.io.ByteArrayOutputStream()
             val armor = armoredOut(out)
             loadPublicKeyring()?.firstOrNull { bytesToHex(it.publicKey.fingerprint) == fp }?.encode(armor)
