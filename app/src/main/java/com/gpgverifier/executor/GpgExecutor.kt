@@ -623,16 +623,73 @@ class GpgExecutor(private val context: Context) {
     fun importKey(keyFile: File): GpgOperationResult {
         AppLogger.log("DEBUG: importKey() dari ${keyFile.absolutePath}")
         return try {
-            // Baca seluruh file ke ByteArray terlebih dahulu
-            // agar stream dapat digunakan dua kali (pubkey + seckey)
             val bytes = keyFile.readBytes()
-            val pub = tryImportPublicKeys(bytes.inputStream())
-            val sec = tryImportSecretKeys(bytes.inputStream())
+
+            // Coba armored terlebih dahulu
+            var pub = tryImportPublicKeys(bytes.inputStream())
+            var sec = tryImportSecretKeys(bytes.inputStream())
+
+            // Fallback: jika tidak ada armor block, coba parsing sebagai binary
+            if (pub + sec == 0) {
+                val result = tryImportBinary(bytes)
+                pub = result.first
+                sec = result.second
+            }
+
             if (pub + sec == 0) GpgOperationResult.Failure("Tidak ada key yang valid ditemukan")
             else GpgOperationResult.Success("$pub public, $sec secret key diimport")
         } catch (e: Exception) {
             AppLogger.log("ERROR importKey: ${e.message}")
             GpgOperationResult.Failure(e.message ?: "Import gagal")
+        }
+    }
+
+    private fun tryImportBinary(bytes: ByteArray): Pair<Int, Int> {
+        var pubCount = 0
+        var secCount = 0
+        return try {
+            val calc = org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator()
+            val factory = PGPObjectFactory(
+                PGPUtil.getDecoderStream(bytes.inputStream()), calc
+            )
+            val existingPub = loadPublicKeyring()
+                ?.associateBy { bytesToHex(it.publicKey.fingerprint) }
+                ?.toMutableMap() ?: mutableMapOf()
+            val existingSec = loadSecretKeyring()
+                ?.associateBy { bytesToHex(it.secretKey.publicKey.fingerprint) }
+                ?.toMutableMap() ?: mutableMapOf()
+
+            var obj = factory.nextObject()
+            while (obj != null) {
+                when (obj) {
+                    is PGPPublicKeyRing -> {
+                        val fp = bytesToHex(obj.publicKey.fingerprint)
+                        if (!existingPub.containsKey(fp)) pubCount++
+                        existingPub[fp] = obj
+                    }
+                    is PGPSecretKeyRing -> {
+                        val fp = bytesToHex(obj.secretKey.publicKey.fingerprint)
+                        if (!existingSec.containsKey(fp)) secCount++
+                        existingSec[fp] = obj
+                        // Tambahkan juga public key-nya ke pubring
+                        val pubFp = fp
+                        if (!existingPub.containsKey(pubFp)) {
+                            existingPub[pubFp] = PGPPublicKeyRing(
+                                obj.secretKey.publicKey.encoded.inputStream(), calc
+                            )
+                        }
+                    }
+                }
+                obj = try { factory.nextObject() } catch (e: Exception) { null }
+            }
+
+            if (existingPub.isNotEmpty()) savePublicKeyring(existingPub.values.toList())
+            if (existingSec.isNotEmpty()) saveSecretKeyring(existingSec.values.toList())
+            AppLogger.log("DEBUG: tryImportBinary — pub=$pubCount sec=$secCount")
+            Pair(pubCount, secCount)
+        } catch (e: Exception) {
+            AppLogger.log("WARN tryImportBinary: ${e.message}")
+            Pair(0, 0)
         }
     }
 
@@ -805,20 +862,28 @@ class GpgExecutor(private val context: Context) {
     private fun tryImportPublicKeys(input: InputStream): Int {
         return try {
             val text = input.readBytes().toString(Charsets.UTF_8)
-            val blocks = extractArmorBlocks(text).filter { it.contains("PUBLIC KEY") }
-            val existing = loadPublicKeyring()?.associateBy { bytesToHex(it.publicKey.fingerprint) }
+            // Sertakan semua block — termasuk yang tidak bertipe PUBLIC KEY
+            // agar file campuran (pub+priv) tetap dapat diparsing pub-nya
+            val blocks = extractArmorBlocks(text)
+                .filter { it.contains("PUBLIC KEY") || it.contains("BEGIN PGP PUBLIC") }
+            val existing = loadPublicKeyring()
+                ?.associateBy { bytesToHex(it.publicKey.fingerprint) }
                 ?.toMutableMap() ?: mutableMapOf()
             var count = 0
             for (block in blocks) {
                 try {
-                    val col = PGPPublicKeyRingCollection(
-                        PGPUtil.getDecoderStream(block.byteInputStream(Charsets.UTF_8)),
-                        org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator()
+                    val calc = org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator()
+                    val factory = PGPObjectFactory(
+                        PGPUtil.getDecoderStream(block.byteInputStream(Charsets.UTF_8)), calc
                     )
-                    for (ring in col.keyRings) {
-                        val fp = bytesToHex(ring.publicKey.fingerprint)
-                        if (!existing.containsKey(fp)) count++
-                        existing[fp] = ring
+                    var obj = factory.nextObject()
+                    while (obj != null) {
+                        if (obj is PGPPublicKeyRing) {
+                            val fp = bytesToHex(obj.publicKey.fingerprint)
+                            if (!existing.containsKey(fp)) count++
+                            existing[fp] = obj
+                        }
+                        obj = try { factory.nextObject() } catch (e: Exception) { null }
                     }
                 } catch (e: Exception) {
                     AppLogger.log("WARN tryImportPublicKeys block: ${e.message}")
@@ -835,20 +900,26 @@ class GpgExecutor(private val context: Context) {
     private fun tryImportSecretKeys(input: InputStream): Int {
         return try {
             val text = input.readBytes().toString(Charsets.UTF_8)
-            val blocks = extractArmorBlocks(text).filter { it.contains("PRIVATE KEY") || it.contains("SECRET KEY") }
-            val existing = loadSecretKeyring()?.associateBy { bytesToHex(it.secretKey.publicKey.fingerprint) }
+            val blocks = extractArmorBlocks(text)
+                .filter { it.contains("PRIVATE KEY") || it.contains("SECRET KEY") }
+            val existing = loadSecretKeyring()
+                ?.associateBy { bytesToHex(it.secretKey.publicKey.fingerprint) }
                 ?.toMutableMap() ?: mutableMapOf()
             var count = 0
             for (block in blocks) {
                 try {
-                    val col = PGPSecretKeyRingCollection(
-                        PGPUtil.getDecoderStream(block.byteInputStream(Charsets.UTF_8)),
-                        org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator()
+                    val calc = org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator()
+                    val factory = PGPObjectFactory(
+                        PGPUtil.getDecoderStream(block.byteInputStream(Charsets.UTF_8)), calc
                     )
-                    for (ring in col.keyRings) {
-                        val fp = bytesToHex(ring.secretKey.publicKey.fingerprint)
-                        if (!existing.containsKey(fp)) count++
-                        existing[fp] = ring
+                    var obj = factory.nextObject()
+                    while (obj != null) {
+                        if (obj is PGPSecretKeyRing) {
+                            val fp = bytesToHex(obj.secretKey.publicKey.fingerprint)
+                            if (!existing.containsKey(fp)) count++
+                            existing[fp] = obj
+                        }
+                        obj = try { factory.nextObject() } catch (e: Exception) { null }
                     }
                 } catch (e: Exception) {
                     AppLogger.log("WARN tryImportSecretKeys block: ${e.message}")
