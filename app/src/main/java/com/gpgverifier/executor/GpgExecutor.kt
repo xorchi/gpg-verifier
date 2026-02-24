@@ -42,13 +42,19 @@ class GpgExecutor(private val context: Context) {
      */
     // Simpan langsung ke Downloads, fallback ke cacheDir jika gagal
     private fun saveToDownloads(name: String): File {
+        // Hindari ekstensi ganda: jika nama sudah diakhiri .asc/.gpg/.sig, hapus lebih dulu
+        val cleanName = if (name.endsWith(".asc.asc") || name.endsWith(".gpg.asc") ||
+                            name.endsWith(".sig.asc") || name.endsWith(".asc.gpg") ||
+                            name.endsWith(".gpg.gpg") || name.endsWith(".asc.sig")) {
+            name.substringBeforeLast('.')
+        } else name
         return try {
             val dir = android.os.Environment.getExternalStoragePublicDirectory(
                 android.os.Environment.DIRECTORY_DOWNLOADS)
             dir.mkdirs()
-            uniqueFile(dir, name)
+            uniqueFile(dir, cleanName)
         } catch (e: Exception) {
-            uniqueFile(context.cacheDir, name)
+            uniqueFile(context.cacheDir, cleanName)
         }
     }
 
@@ -636,8 +642,13 @@ class GpgExecutor(private val context: Context) {
                 sec = result.second
             }
 
-            if (pub + sec == 0) GpgOperationResult.Failure("Tidak ada key yang valid ditemukan")
-            else GpgOperationResult.Success("$pub public, $sec secret key diimport")
+            val alreadyExists = pub + sec == 0
+            if (alreadyExists) {
+                // Cek apakah file memang berisi key yang sudah ada di keyring
+                val hasAnyKey = tryImportPublicKeys(bytes.inputStream()) >= 0 ||
+                                tryImportSecretKeys(bytes.inputStream()) >= 0
+                GpgOperationResult.Failure("Key sudah ada di keyring — tidak ada key baru yang diimport")
+            } else GpgOperationResult.Success("$pub public, $sec secret key diimport")
         } catch (e: Exception) {
             AppLogger.log("ERROR importKey: ${e.message}")
             GpgOperationResult.Failure(e.message ?: "Import gagal")
@@ -939,7 +950,10 @@ class GpgExecutor(private val context: Context) {
                     AppLogger.log("WARN tryImportSecretKeys block: ${e.message}")
                 }
             }
-            if (existing.isNotEmpty()) saveSecretKeyring(existing.values.toList())
+            if (existing.isNotEmpty()) {
+                saveSecretKeyring(existing.values.toList())
+                if (count > 0) extractPublicKeysFromSecretRings(existing.values.toList())
+            }
             count
         } catch (e: Exception) {
             AppLogger.log("ERROR tryImportSecretKeys: ${e.message}")
