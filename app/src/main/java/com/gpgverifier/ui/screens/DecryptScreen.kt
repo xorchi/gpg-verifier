@@ -122,7 +122,7 @@ fun DecryptScreen(modifier: Modifier = Modifier) {
                                 ) {
                                     Icon(Icons.Default.Save, null, modifier = Modifier.size(16.dp))
                                     Spacer(Modifier.width(4.dp))
-                                    Text("Simpan")
+                                    Text("Save")
                                 }
                                 OutlinedButton(
                                     onClick = { FileShareHelper.shareFile(context, res.outputPath) },
@@ -130,7 +130,7 @@ fun DecryptScreen(modifier: Modifier = Modifier) {
                                 ) {
                                     Icon(Icons.Default.Share, null, modifier = Modifier.size(16.dp))
                                     Spacer(Modifier.width(4.dp))
-                                    Text("Bagikan")
+                                    Text("Share")
                                 }
                             }
 

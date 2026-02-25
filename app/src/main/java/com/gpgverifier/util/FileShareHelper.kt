@@ -13,8 +13,8 @@ import java.io.FileOutputStream
 object FileShareHelper {
 
     /**
-     * Bagikan file output via Android share sheet.
-     * Menggunakan FileProvider sehingga tidak memerlukan izin storage apapun.
+     * Share output file via Android share sheet.
+     * Uses FileProvider so no storage permission is required.
      */
     fun shareFile(context: Context, filePath: String) {
         val file = File(filePath)

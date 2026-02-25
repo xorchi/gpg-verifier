@@ -16,12 +16,12 @@ class KeyringRepository(context: Context) {
     // ── Verify (detached) ────────────────────────────────────────────────────
     suspend fun verify(dataUri: Uri, sigUri: Uri, context: Context): VerificationResult =
         withContext(Dispatchers.IO) {
-            AppLogger.log("DEBUG: verify dipanggil")
+            AppLogger.log("DEBUG: verify called")
             val dataFile = uriToTempFile(dataUri, context, "data_file")
             val sigFile  = uriToTempFile(sigUri,  context, "sig_file")
             try {
                 executor.verify(dataFile, sigFile).also {
-                    AppLogger.log("INFO: Verifikasi ${if (it.isValid) "sukses" else "gagal"}")
+                    AppLogger.log("INFO: Verification ${if (it.isValid) "success" else "failed"}")
                 }
             } finally { dataFile.delete(); sigFile.delete() }
         }
@@ -29,11 +29,11 @@ class KeyringRepository(context: Context) {
     // ── Verify ClearSign (single file) ───────────────────────────────────────
     suspend fun verifyClearSign(clearSignUri: Uri, context: Context): VerificationResult =
         withContext(Dispatchers.IO) {
-            AppLogger.log("DEBUG: verifyClearSign dipanggil")
+            AppLogger.log("DEBUG: verifyClearSign called")
             val clearSignFile = uriToTempFile(clearSignUri, context, "clearsign_file")
             try {
                 executor.verifyClearSign(clearSignFile).also {
-                    AppLogger.log("INFO: ClearSign verifikasi ${if (it.isValid) "sukses" else "gagal"}")
+                    AppLogger.log("INFO: ClearSign verification ${if (it.isValid) "success" else "failed"}")
                 }
             } finally { clearSignFile.delete() }
         }

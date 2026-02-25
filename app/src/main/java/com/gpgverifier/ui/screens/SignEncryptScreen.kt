@@ -151,7 +151,7 @@ fun SignTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope, s
                 Text("Sign", fontWeight = FontWeight.Bold)
             }
 
-            outputPath?.let { SuccessCard("Signed file berhasil dibuat.", outputPath = it) }
+            outputPath?.let { SuccessCard("Signed file created successfully.", outputPath = it) }
         }
     }
 }
@@ -182,7 +182,7 @@ fun EncryptTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text("Encrypt File (Asymmetric)", style = MaterialTheme.typography.titleMedium)
-            Text("Enkripsi dengan public key penerima.", style = MaterialTheme.typography.bodySmall,
+            Text("Encrypt with recipient's public key.", style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
 
             FilePickerCard("Input File", inputUri, Icons.Default.InsertDriveFile) { filePicker.launch("*/*") }
@@ -239,7 +239,7 @@ fun EncryptTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope
                 Text("Encrypt", fontWeight = FontWeight.Bold)
             }
 
-            outputPath?.let { SuccessCard("Encrypted file berhasil dibuat.", outputPath = it) }
+            outputPath?.let { SuccessCard("Encrypted file created successfully.", outputPath = it) }
         }
     }
 }
@@ -271,7 +271,7 @@ fun SymmetricEncryptTab(repo: KeyringRepository, scope: kotlinx.coroutines.Corou
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text("Encrypt File (Symmetric)", style = MaterialTheme.typography.titleMedium)
-            Text("Enkripsi dengan passphrase — tidak memerlukan key pair.",
+            Text("Encrypt with passphrase — no key pair required.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
 
@@ -292,7 +292,7 @@ fun SymmetricEncryptTab(repo: KeyringRepository, scope: kotlinx.coroutines.Corou
                 isError = confirm.isNotEmpty() && !passphraseMatch,
                 supportingText = {
                     if (confirm.isNotEmpty() && !passphraseMatch)
-                        Text("Passphrase tidak cocok", color = MaterialTheme.colorScheme.error)
+                        Text("Passphrases do not match", color = MaterialTheme.colorScheme.error)
                 }
             )
 
@@ -305,7 +305,7 @@ fun SymmetricEncryptTab(repo: KeyringRepository, scope: kotlinx.coroutines.Corou
             Button(
                 onClick = {
                     val uri = inputUri ?: return@Button
-                    if (!passphraseMatch) { resultMsg = "Passphrase tidak cocok"; return@Button }
+                    if (!passphraseMatch) { resultMsg = "Passphrases do not match"; return@Button }
                     scope.launch {
                         isLoading = true; outputPath = null
                         val res = repo.encryptSymmetric(uri, context, passphrase, armor)
@@ -322,7 +322,7 @@ fun SymmetricEncryptTab(repo: KeyringRepository, scope: kotlinx.coroutines.Corou
                 Text("Encrypt (Symmetric)", fontWeight = FontWeight.Bold)
             }
 
-            outputPath?.let { SuccessCard("Encrypted file berhasil dibuat.", outputPath = it) }
+            outputPath?.let { SuccessCard("Encrypted file created successfully.", outputPath = it) }
         }
     }
 }
@@ -345,7 +345,7 @@ fun SuccessCard(message: String, outputPath: String? = null) {
                     Text(message, style = MaterialTheme.typography.bodyMedium)
                     if (fileName.isNotBlank()) {
                         Text(
-                            "Tersimpan di Download/$fileName",
+                            "Saved to Download/$fileName",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
@@ -358,7 +358,7 @@ fun SuccessCard(message: String, outputPath: String? = null) {
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(Icons.Default.Share, null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp)); Text("Bagikan")
+                    Spacer(Modifier.width(4.dp)); Text("Share")
                 }
             }
         }
