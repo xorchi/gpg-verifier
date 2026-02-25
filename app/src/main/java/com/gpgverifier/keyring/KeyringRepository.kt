@@ -41,11 +41,12 @@ class KeyringRepository(context: Context) {
     // ── Sign ─────────────────────────────────────────────────────────────────
     suspend fun sign(
         dataUri: Uri, context: Context,
-        keyFingerprint: String, mode: SignMode, passphrase: String
+        keyFingerprint: String, mode: SignMode, passphrase: String,
+        hashAlgorithm: com.gpgverifier.model.HashAlgorithm = com.gpgverifier.model.HashAlgorithm.SHA256
     ): SignResult = withContext(Dispatchers.IO) {
         val dataFile = uriToTempFile(dataUri, context, "sign_input")
         val originalName = getOriginalFileName(dataUri, context)
-        try { executor.sign(dataFile, keyFingerprint, mode, passphrase, originalName) }
+        try { executor.sign(dataFile, keyFingerprint, mode, passphrase, originalName, hashAlgorithm) }
         finally { dataFile.delete() }
     }
 

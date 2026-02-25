@@ -18,6 +18,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.gpgverifier.keyring.KeyringRepository
 import com.gpgverifier.model.GpgKey
+import com.gpgverifier.model.HashAlgorithm
 import com.gpgverifier.model.SignMode
 import com.gpgverifier.util.FileShareHelper
 import kotlinx.coroutines.launch
@@ -57,6 +58,7 @@ fun SignTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope, s
     var secretKeys by remember { mutableStateOf<List<GpgKey>>(emptyList()) }
     var selectedKey by remember { mutableStateOf<GpgKey?>(null) }
     var signMode   by remember { mutableStateOf(SignMode.DETACH_ARMOR) }
+    var hashAlgorithm by remember { mutableStateOf(HashAlgorithm.SHA256) }
     var passphrase by remember { mutableStateOf("") }
     var isLoading  by remember { mutableStateOf(false) }
     var resultMsg  by remember { mutableStateOf<String?>(null) }
@@ -124,6 +126,25 @@ fun SignTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope, s
                 }
             }
 
+            Text("Hash Algorithm", style = MaterialTheme.typography.labelMedium)
+            var hashExpanded by remember { mutableStateOf(false) }
+            val hashOptions = listOf(HashAlgorithm.SHA256 to "SHA-256 (default)", HashAlgorithm.SHA512 to "SHA-512")
+            ExposedDropdownMenuBox(expanded = hashExpanded, onExpandedChange = { hashExpanded = it }) {
+                OutlinedTextField(
+                    value = hashOptions.first { it.first == hashAlgorithm }.second,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Hash") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(hashExpanded) },
+                    modifier = Modifier.fillMaxWidth().menuAnchor()
+                )
+                ExposedDropdownMenu(expanded = hashExpanded, onDismissRequest = { hashExpanded = false }) {
+                    hashOptions.forEach { (alg, label) ->
+                        DropdownMenuItem(text = { Text(label) }, onClick = { hashAlgorithm = alg; hashExpanded = false })
+                    }
+                }
+            }
+
             OutlinedTextField(
                 value = passphrase, onValueChange = { passphrase = it },
                 label = { Text("Passphrase") },
@@ -137,7 +158,7 @@ fun SignTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope, s
                     val key = selectedKey ?: return@Button
                     scope.launch {
                         isLoading = true; outputPath = null
-                        val res = repo.sign(uri, context, key.fingerprint, signMode, passphrase)
+                        val res = repo.sign(uri, context, key.fingerprint, signMode, passphrase, hashAlgorithm)
                         isLoading = false
                         if (res.success) outputPath = res.outputPath
                         else resultMsg = "✗ ${res.errorMessage}"

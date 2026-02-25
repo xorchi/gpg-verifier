@@ -7,7 +7,8 @@ data class VerificationResult(
     val timestamp: String,
     val trustLevel: String,
     val rawOutput: String,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val hashAlgorithm: String = ""   // algoritma hash yang terdeteksi dari paket signature
 )
 
 data class GpgKey(
@@ -28,6 +29,11 @@ enum class SignMode {
     CLEARSIGN,
     NORMAL_ARMOR,
     NORMAL
+}
+
+enum class HashAlgorithm(val tag: Int, val headerName: String) {
+    SHA256(org.bouncycastle.bcpg.HashAlgorithmTags.SHA256, "SHA256"),
+    SHA512(org.bouncycastle.bcpg.HashAlgorithmTags.SHA512, "SHA512")
 }
 
 data class KeyGenParams(

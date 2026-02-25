@@ -252,6 +252,8 @@ fun VerificationResultCard(
                 Divider(modifier = Modifier.padding(vertical = 4.dp))
                 InfoRow("Signed by", result.signedBy)
                 InfoRow("Fingerprint", result.fingerprint.chunked(4).joinToString(" "))
+                if (result.hashAlgorithm.isNotBlank())
+                    InfoRow("Hash Algorithm", result.hashAlgorithm)
                 InfoRow("Timestamp", result.timestamp)
                 InfoRow("Trust Level", result.trustLevel)
             }

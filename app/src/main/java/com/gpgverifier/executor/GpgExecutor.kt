@@ -86,6 +86,48 @@ class GpgExecutor(private val context: Context) {
         return if (lastDot != -1) name.substring(0, lastDot) else name
     }
 
+
+    // ── Hash algorithm helpers ────────────────────────────────────────────────
+
+    /**
+     * Kembalikan nama algoritma hash berdasarkan tag dari paket signature.
+     * Tag ini dibaca langsung dari [PGPSignature.hashAlgorithm] —
+     * tidak perlu input dari user, sudah otomatis terdeteksi.
+     */
+    private fun hashAlgorithmName(tag: Int): String = when (tag) {
+        org.bouncycastle.bcpg.HashAlgorithmTags.MD5      -> "MD5"
+        org.bouncycastle.bcpg.HashAlgorithmTags.SHA1     -> "SHA-1"
+        org.bouncycastle.bcpg.HashAlgorithmTags.SHA224   -> "SHA-224"
+        org.bouncycastle.bcpg.HashAlgorithmTags.SHA256   -> "SHA-256"
+        org.bouncycastle.bcpg.HashAlgorithmTags.SHA384   -> "SHA-384"
+        org.bouncycastle.bcpg.HashAlgorithmTags.SHA512   -> "SHA-512"
+        org.bouncycastle.bcpg.HashAlgorithmTags.SHA3_256 -> "SHA3-256"
+        org.bouncycastle.bcpg.HashAlgorithmTags.SHA3_512 -> "SHA3-512"
+        else                                             -> "Unknown ($tag)"
+    }
+
+    /**
+     * Pilih provider berdasarkan algoritma hash yang terdeteksi dari signature.
+     *
+     * BcPGPContentVerifierBuilderProvider (lightweight) tidak selalu mendukung
+     * SHA-384, SHA-512, SHA3-* pada semua build Android — khususnya karena
+     * lightweight BC menggunakan implementasi cipher internal, bukan JCA.
+     * JcaPGPContentVerifierBuilderProvider meneruskan ke JCE/BouncyCastle
+     * penuh (bcprov) yang support semua algoritma OpenPGP standar.
+     */
+    private fun resolveVerifierProvider(
+        hashAlgTag: Int
+    ): org.bouncycastle.openpgp.operator.PGPContentVerifierBuilderProvider =
+        when (hashAlgTag) {
+            org.bouncycastle.bcpg.HashAlgorithmTags.SHA1,
+            org.bouncycastle.bcpg.HashAlgorithmTags.SHA256 ->
+                org.bouncycastle.openpgp.operator.bc.BcPGPContentVerifierBuilderProvider()
+            else ->
+                // SHA-384, SHA-512, SHA-224, SHA3-* → gunakan JCA (bcprov penuh)
+                org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentVerifierBuilderProvider()
+                    .setProvider(org.bouncycastle.jce.provider.BouncyCastleProvider())
+        }
+
     // ── Verify (detached signature) ───────────────────────────────────────────
 
     fun verify(dataFile: File, sigFile: File): VerificationResult {
@@ -98,20 +140,24 @@ class GpgExecutor(private val context: Context) {
                 ?: return VerificationResult(false, "", "", "", "", "Keyring kosong — import public key terlebih dahulu")
             for (sig in sigs) {
                 val pubKey = findPublicKey(pubRings, sig.keyID) ?: continue
-                sig.init(org.bouncycastle.openpgp.operator.bc.BcPGPContentVerifierBuilderProvider(), pubKey)
+                // Deteksi otomatis: sig.hashAlgorithm dibaca dari paket signature itu sendiri
+                val algTag  = sig.hashAlgorithm
+                AppLogger.log("DEBUG verify: hashAlg=${hashAlgorithmName(algTag)} keyID=${sig.keyID}")
+                sig.init(resolveVerifierProvider(algTag), pubKey)
                 sig.update(dataFile.readBytes())
                 val valid = sig.verify()
                 val fp  = bytesToHex(pubKey.fingerprint)
                 val uid = (pubKey.userIDs.asSequence().firstOrNull() ?: "Unknown") as String
                 val ts  = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(sig.creationTime)
                 return VerificationResult(
-                    isValid      = valid,
-                    signedBy     = uid,
-                    fingerprint  = fp,
-                    timestamp    = ts,
-                    trustLevel   = getTrustLevel(fp),
-                    rawOutput    = if (valid) "Good signature from \"$uid\"" else "BAD signature",
-                    errorMessage = if (!valid) "Signature tidak valid" else null
+                    isValid       = valid,
+                    signedBy      = uid,
+                    fingerprint   = fp,
+                    timestamp     = ts,
+                    trustLevel    = getTrustLevel(fp),
+                    hashAlgorithm = hashAlgorithmName(algTag),
+                    rawOutput     = if (valid) "Good signature from \"$uid\"" else "BAD signature",
+                    errorMessage  = if (!valid) "Signature tidak valid" else null
                 )
             }
             VerificationResult(false, "", "", "", "", "No public key — key ID tidak ditemukan di keyring")
@@ -177,20 +223,23 @@ class GpgExecutor(private val context: Context) {
 
             for (sig in sigs) {
                 val pubKey = findPublicKey(pubRings, sig.keyID) ?: continue
-                sig.init(org.bouncycastle.openpgp.operator.bc.BcPGPContentVerifierBuilderProvider(), pubKey)
+                val algTag  = sig.hashAlgorithm
+                AppLogger.log("DEBUG verifyClearSign: hashAlg=${hashAlgorithmName(algTag)} keyID=${sig.keyID}")
+                sig.init(resolveVerifierProvider(algTag), pubKey)
                 sig.update(canonicalText.toByteArray(Charsets.UTF_8))
                 val valid = sig.verify()
                 val fp  = bytesToHex(pubKey.fingerprint)
                 val uid = (pubKey.userIDs.asSequence().firstOrNull() ?: "Unknown") as String
                 val ts  = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(sig.creationTime)
                 return VerificationResult(
-                    isValid      = valid,
-                    signedBy     = uid,
-                    fingerprint  = fp,
-                    timestamp    = ts,
-                    trustLevel   = getTrustLevel(fp),
-                    rawOutput    = if (valid) "Good signature from \"$uid\"" else "BAD signature",
-                    errorMessage = if (!valid) "Signature tidak valid" else null
+                    isValid       = valid,
+                    signedBy      = uid,
+                    fingerprint   = fp,
+                    timestamp     = ts,
+                    trustLevel    = getTrustLevel(fp),
+                    hashAlgorithm = hashAlgorithmName(algTag),
+                    rawOutput     = if (valid) "Good signature from \"$uid\"" else "BAD signature",
+                    errorMessage  = if (!valid) "Signature tidak valid" else null
                 )
             }
             VerificationResult(false, "", "", "", "", "No public key — key ID tidak ditemukan di keyring")
@@ -232,7 +281,7 @@ class GpgExecutor(private val context: Context) {
 
     // ── Sign ─────────────────────────────────────────────────────────────────
 
-    fun sign(dataFile: File, keyFingerprint: String, mode: SignMode, passphrase: String, originalName: String = dataFile.name): SignResult {
+    fun sign(dataFile: File, keyFingerprint: String, mode: SignMode, passphrase: String, originalName: String = dataFile.name, hashAlgorithm: com.gpgverifier.model.HashAlgorithm = com.gpgverifier.model.HashAlgorithm.SHA256): SignResult {
         AppLogger.log("DEBUG: sign() fp=$keyFingerprint mode=$mode")
         return try {
             val secRing = findSecretKeyRing(keyFingerprint)
@@ -257,7 +306,7 @@ class GpgExecutor(private val context: Context) {
             }
             val sigGen = PGPSignatureGenerator(
                 org.bouncycastle.openpgp.operator.bc.BcPGPContentSignerBuilder(
-                    secKey.publicKey.algorithm, HashAlgorithmTags.SHA256)
+                    secKey.publicKey.algorithm, hashAlgorithm.tag)
             ).apply {
                 init(sigType, privateKey)
                 val sub = PGPSignatureSubpacketGenerator()
@@ -296,7 +345,7 @@ class GpgExecutor(private val context: Context) {
                     // Tulis seluruh clearsign file sebagai plain text
                     outFile.bufferedWriter(Charsets.UTF_8).use { w ->
                         w.write("-----BEGIN PGP SIGNED MESSAGE-----\n")
-                        w.write("Hash: SHA256\n")
+                        w.write("Hash: ${hashAlgorithm.headerName}\n")
                         w.write("\n")
                         w.write(contentStr)
                         if (!contentStr.endsWith("\n")) w.write("\n")
@@ -1178,7 +1227,9 @@ class GpgExecutor(private val context: Context) {
             val ops = onePassList[0]
             val pubKey = findPublicKey(pubRings, ops.keyID)
                 ?: return VerificationResult(false, "", "", "", "", "Public key tidak ditemukan di keyring")
-            ops.init(org.bouncycastle.openpgp.operator.bc.BcPGPContentVerifierBuilderProvider(), pubKey)
+            val algTag = ops.hashAlgorithm
+            AppLogger.log("DEBUG verifyEmbedded: hashAlg=${hashAlgorithmName(algTag)} keyID=${ops.keyID}")
+            ops.init(resolveVerifierProvider(algTag), pubKey)
 
             // Pass 2: baca literal data dan update verifier
             val factory2 = nextFrom(innerBytes)
@@ -1200,10 +1251,14 @@ class GpgExecutor(private val context: Context) {
             val uid = (pubKey.userIDs.asSequence().firstOrNull() ?: "Unknown") as String
             val ts  = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(sig.creationTime)
             VerificationResult(
-                isValid = valid, signedBy = uid, fingerprint = fp,
-                timestamp = ts, trustLevel = getTrustLevel(fp),
-                rawOutput = if (valid) "Good signature from \"$uid\"" else "BAD signature",
-                errorMessage = if (!valid) "Signature tidak valid" else null
+                isValid       = valid,
+                signedBy      = uid,
+                fingerprint   = fp,
+                timestamp     = ts,
+                trustLevel    = getTrustLevel(fp),
+                hashAlgorithm = hashAlgorithmName(sig.hashAlgorithm),
+                rawOutput     = if (valid) "Good signature from \"$uid\"" else "BAD signature",
+                errorMessage  = if (!valid) "Signature tidak valid" else null
             )
         } catch (e: Exception) {
             AppLogger.log("ERROR verifyEmbedded: ${e.message}")
