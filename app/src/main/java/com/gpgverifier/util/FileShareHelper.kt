@@ -32,17 +32,10 @@ object FileShareHelper {
             putExtra(Intent.EXTRA_STREAM, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        context.startActivity(Intent.createChooser(intent, "Simpan / Bagikan File"))
-        AppLogger.log("INFO: shareFile — share sheet dibuka untuk ${file.name}")
+        context.startActivity(Intent.createChooser(intent, "Save / Share Files"))
+        AppLogger.log("INFO: shareFile — share sheet opened for ${file.name}")
     }
 
-    /**
-     * Salin file ke folder Downloads publik.
-     * Hanya tersedia di Android 9 ke bawah atau jika izin WRITE_EXTERNAL_STORAGE diberikan.
-     * Di Android 10+ gunakan [shareFile] atau SAF (ACTION_CREATE_DOCUMENT).
-     *
-     * Returns destination path if successful, null if failed.
-     */
     fun saveToDownloads(context: Context, filePath: String): String? {
         return try {
             val src = File(filePath)
@@ -59,15 +52,6 @@ object FileShareHelper {
         }
     }
 
-    /**
-     * Buat Intent ACTION_CREATE_DOCUMENT untuk menyimpan file via SAF (Storage Access Framework).
-     * Pengguna memilih lokasi tujuan sendiri. Cocok untuk Android 10+.
-     *
-     * Cara pakai:
-     *   val intent = FileShareHelper.createSaveIntent(outputPath)
-     *   launcher.launch(intent)
-     * Lalu di callback launcher salin isi file ke Uri yang dikembalikan.
-     */
     fun createSaveIntent(filePath: String): Intent {
         val file = File(filePath)
         return Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
@@ -77,9 +61,6 @@ object FileShareHelper {
         }
     }
 
-    /**
-     * Salin konten dari [sourcePath] ke [destUri] yang diperoleh dari ACTION_CREATE_DOCUMENT.
-     */
     fun copyToUri(context: Context, sourcePath: String, destUri: Uri): Boolean {
         return try {
             val src = File(sourcePath)

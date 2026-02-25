@@ -68,11 +68,11 @@ class MainActivity : ComponentActivity() {
     private fun checkAndRequestPermissions() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             if (!Environment.isExternalStorageManager()) {
-                AppLogger.log("INFO: Meminta izin All Files Access.")
+                AppLogger.log("INFO: Requesting All Files Access permission.")
                 startActivity(Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
                     .apply { data = Uri.parse("package:$packageName") })
             } else {
-                AppLogger.log("INFO: Izin All Files Access sudah diberikan.")
+                AppLogger.log("INFO: All Files Access permission has been granted")
             }
         } else {
             val perms = mutableListOf<String>()

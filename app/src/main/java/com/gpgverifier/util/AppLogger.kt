@@ -6,14 +6,6 @@ import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.*
 
-/**
- * Logger internal aplikasi.
- * - Debug  : logcat + file privat di filesDir/logs/app.log
- * - Release: logcat only — no file written to public storage
- *
- * Tidak memerlukan izin storage apapun. Aman di Android 11+.
- * Panggil AppLogger.init(filesDir) sekali dari MainActivity.
- */
 object AppLogger {
     private const val TAG = "GPGVerifier"
     private const val MAX_LOG_BYTES = 512 * 1024L // rotate di 512 KB
