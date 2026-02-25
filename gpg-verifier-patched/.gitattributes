@@ -1,3 +1,0 @@
-# Treat GPG binary as binary file (no line ending conversion)
-app/src/main/assets/gpg binary
-app/src/main/assets/gpg -text

@@ -158,10 +158,12 @@ class GpgExecutor(private val context: Context) {
                 val pubKey = findPublicKey(pubRings, sig.keyID) ?: continue
                 // Auto-detected: sig.hashAlgorithm is read directly from the signature packet
                 val algTag  = sig.hashAlgorithm
-                AppLogger.d("verify: hashAlg=${hashAlgorithmName(algTag)} keyID=0x${sig.keyID.let { java.lang.Long.toUnsignedString(it, 16).uppercase() }}", AppLogger.TAG_CRYPTO)
+                val dataBytes = dataFile.readBytes()
+                AppLogger.d("verify: hashAlg=${hashAlgorithmName(algTag)} keyID=0x${sig.keyID.let { java.lang.Long.toUnsignedString(it, 16).uppercase() }} dataSize=${dataBytes.size}B uid=${(pubKey.userIDs.asSequence().firstOrNull() ?: "?")} keyAlg=${pubKey.algorithm}", AppLogger.TAG_CRYPTO)
                 sig.init(resolveVerifierProvider(algTag), pubKey)
-                sig.update(dataFile.readBytes())
+                sig.update(dataBytes)
                 val valid = sig.verify()
+                AppLogger.d("verify: cryptographic check result=${if (valid) "PASS" else "FAIL"}", AppLogger.TAG_CRYPTO)
                 val fp  = bytesToHex(pubKey.fingerprint)
                 val uid = (pubKey.userIDs.asSequence().firstOrNull() ?: "Unknown") as String
                 val ts  = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(sig.creationTime)
@@ -178,7 +180,7 @@ class GpgExecutor(private val context: Context) {
             }
             VerificationResult(false, "", "", "", "", "No public key — key ID not found in keyring")
         } catch (e: Exception) {
-            AppLogger.d("verify() failed: ${e.message}", AppLogger.TAG_CRYPTO)
+            AppLogger.e("verify() failed: ${e.message}", AppLogger.TAG_CRYPTO)
             VerificationResult(false, "", "", "", "", e.message ?: "Verification failed")
         }
     }
@@ -238,6 +240,7 @@ class GpgExecutor(private val context: Context) {
             // to tolerate custom headers such as "Version: GPGVerifier"
             val sigBlock = content.substring(sigStart, sigEnd + sigFooter.length)
             val sigs = parseClearSignSignatureBlock(sigBlock)
+            AppLogger.d("verifyClearSign: parsedSigs=${sigs.size} sigBlockLen=${sigBlock.length}B", AppLogger.TAG_CRYPTO)
             if (sigs.isEmpty())
                 return VerificationResult(false, "", "", "", "", "No parseable signature found")
 
@@ -252,10 +255,12 @@ class GpgExecutor(private val context: Context) {
             for (sig in sigs) {
                 val pubKey = findPublicKey(pubRings, sig.keyID) ?: continue
                 val algTag  = sig.hashAlgorithm
-                AppLogger.d("verifyClearSign: hashAlg=${hashAlgorithmName(algTag)} keyID=0x${sig.keyID.let { java.lang.Long.toUnsignedString(it, 16).uppercase() }}", AppLogger.TAG_CRYPTO)
+                val canonicalBytes = canonicalText.toByteArray(Charsets.UTF_8)
+                AppLogger.d("verifyClearSign: hashAlg=${hashAlgorithmName(algTag)} keyID=0x${sig.keyID.let { java.lang.Long.toUnsignedString(it, 16).uppercase() }} canonicalLen=${canonicalBytes.size}B uid=${(pubKey.userIDs.asSequence().firstOrNull() ?: "?")} keyAlg=${pubKey.algorithm}", AppLogger.TAG_CRYPTO)
                 sig.init(resolveVerifierProvider(algTag), pubKey)
-                sig.update(canonicalText.toByteArray(Charsets.UTF_8))
+                sig.update(canonicalBytes)
                 val valid = sig.verify()
+                AppLogger.d("verifyClearSign: cryptographic check result=${if (valid) "PASS" else "FAIL"}", AppLogger.TAG_CRYPTO)
                 val fp  = bytesToHex(pubKey.fingerprint)
                 val uid = (pubKey.userIDs.asSequence().firstOrNull() ?: "Unknown") as String
                 val ts  = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(sig.creationTime)
@@ -272,7 +277,7 @@ class GpgExecutor(private val context: Context) {
             }
             VerificationResult(false, "", "", "", "", "No public key — key ID not found in keyring")
         } catch (e: Exception) {
-            AppLogger.d("verifyClearSign() failed: ${e.message}", AppLogger.TAG_CRYPTO)
+            AppLogger.e("verifyClearSign() failed: ${e.message}", AppLogger.TAG_CRYPTO)
             VerificationResult(false, "", "", "", "", e.message ?: "ClearSign verification failed")
         }
     }
@@ -302,7 +307,7 @@ class GpgExecutor(private val context: Context) {
             }
             sigs
         } catch (e: Exception) {
-            AppLogger.d("parseClearSignSignatureBlock() failed: ${e.message}", AppLogger.TAG_CRYPTO)
+            AppLogger.e("parseClearSignSignatureBlock() failed: ${e.message}", AppLogger.TAG_CRYPTO)
             sigs
         }
     }
@@ -310,7 +315,8 @@ class GpgExecutor(private val context: Context) {
     // ── Sign ─────────────────────────────────────────────────────────────────
 
     fun sign(dataFile: File, keyFingerprint: String, mode: SignMode, passphrase: String, originalName: String = dataFile.name, hashAlgorithm: com.gpgverifier.model.HashAlgorithm = com.gpgverifier.model.HashAlgorithm.SHA256): SignResult {
-        AppLogger.d("sign() fp=$keyFingerprint mode=$mode hashAlg=${hashAlgorithm.headerName}", AppLogger.TAG_CRYPTO)
+        val tSign = System.currentTimeMillis()
+        AppLogger.d("sign() fp=$keyFingerprint mode=$mode hashAlg=${hashAlgorithm.headerName} inputSize=${dataFile.length()}B", AppLogger.TAG_CRYPTO)
         return try {
             val secRing = findSecretKeyRing(keyFingerprint)
                 ?: return SignResult(false, errorMessage = "Secret key not found")
@@ -376,7 +382,9 @@ class GpgExecutor(private val context: Context) {
                         .joinToString("\r\n") { it.trimEnd() }
                         .trimEnd('\r', '\n') + "\r\n"
 
-                    sigGen.update(canonical.toByteArray(Charsets.UTF_8))
+                    val canonBytes = canonical.toByteArray(Charsets.UTF_8)
+                    AppLogger.d("sign(CLEARSIGN): canonicalLen=${canonBytes.size}B bodyLines=${linesLF.split("\n").size}", AppLogger.TAG_CRYPTO)
+                    sigGen.update(canonBytes)
                     val sig = sigGen.generate()
 
                     // Write signature block to ByteArray via ArmoredOutputStream.
@@ -428,10 +436,10 @@ class GpgExecutor(private val context: Context) {
                     outFile.outputStream().use { it.write(bout.toByteArray()) }
                 }
             }
-            AppLogger.d("sign() output=${outFile.absolutePath} size=${outFile.length()}B", AppLogger.TAG_CRYPTO)
+            AppLogger.i("sign() output=${outFile.absolutePath} size=${outFile.length()}B duration=${System.currentTimeMillis()-tSign}ms", AppLogger.TAG_CRYPTO)
             SignResult(success = true, outputPath = outFile.absolutePath)
         } catch (e: Exception) {
-            AppLogger.d("sign() failed: ${e.message}", AppLogger.TAG_CRYPTO)
+            AppLogger.e("sign() failed: ${e.message}", AppLogger.TAG_CRYPTO)
             SignResult(false, errorMessage = e.message ?: "Signing failed")
         }
     }
@@ -439,7 +447,8 @@ class GpgExecutor(private val context: Context) {
     // ── Encrypt ──────────────────────────────────────────────────────────────
 
     fun encrypt(dataFile: File, recipientFingerprints: List<String>, armor: Boolean, originalName: String = dataFile.name): EncryptResult {
-        AppLogger.d("encrypt() recipients=${recipientFingerprints.size} armor=$armor", AppLogger.TAG_CRYPTO)
+        val tEncrypt = System.currentTimeMillis()
+        AppLogger.d("encrypt() recipients=${recipientFingerprints.size} armor=$armor inputSize=${dataFile.length()}B", AppLogger.TAG_CRYPTO)
         return try {
             val pubRings = loadPublicKeyring()
                 ?: return EncryptResult(false, errorMessage = "Keyring is empty")
@@ -467,10 +476,10 @@ class GpgExecutor(private val context: Context) {
                     }
                 }
             }
-            AppLogger.d("encrypt() output=${outFile.absolutePath} size=${outFile.length()}B", AppLogger.TAG_CRYPTO)
+            AppLogger.i("encrypt() output=${outFile.absolutePath} size=${outFile.length()}B duration=${System.currentTimeMillis()-tEncrypt}ms", AppLogger.TAG_CRYPTO)
             EncryptResult(success = true, outputPath = outFile.absolutePath)
         } catch (e: Exception) {
-            AppLogger.d("encrypt() failed: ${e.message}", AppLogger.TAG_CRYPTO)
+            AppLogger.e("encrypt() failed: ${e.message}", AppLogger.TAG_CRYPTO)
             EncryptResult(false, errorMessage = e.message ?: "Encryption failed")
         }
     }
@@ -478,6 +487,7 @@ class GpgExecutor(private val context: Context) {
     // ── Encrypt Symmetric ────────────────────────────────────────────────────
 
     fun encryptSymmetric(dataFile: File, passphrase: String, armor: Boolean, originalName: String = dataFile.name): EncryptResult {
+        val tEncSym = System.currentTimeMillis()
         AppLogger.d("encryptSymmetric() file=${dataFile.name} size=${dataFile.length()}B armor=$armor", AppLogger.TAG_CRYPTO)
         return try {
             val ext = if (armor) ".asc" else ".gpg"
@@ -502,10 +512,10 @@ class GpgExecutor(private val context: Context) {
                     }
                 }
             }
-            AppLogger.d("encryptSymmetric() output=${outFile.absolutePath} size=${outFile.length()}B", AppLogger.TAG_CRYPTO)
+            AppLogger.i("encryptSymmetric() output=${outFile.absolutePath} size=${outFile.length()}B duration=${System.currentTimeMillis()-tEncSym}ms", AppLogger.TAG_CRYPTO)
             EncryptResult(success = true, outputPath = outFile.absolutePath)
         } catch (e: Exception) {
-            AppLogger.d("encryptSymmetric() failed: ${e.message}", AppLogger.TAG_CRYPTO)
+            AppLogger.e("encryptSymmetric() failed: ${e.message}", AppLogger.TAG_CRYPTO)
             EncryptResult(false, errorMessage = e.message ?: "Symmetric encryption failed")
         }
     }
@@ -513,6 +523,7 @@ class GpgExecutor(private val context: Context) {
     // ── Decrypt ──────────────────────────────────────────────────────────────
 
     fun decrypt(dataFile: File, passphrase: String): DecryptResult {
+        val tDecrypt = System.currentTimeMillis()
         AppLogger.d("decrypt() file=${dataFile.name} size=${dataFile.length()}B", AppLogger.TAG_CRYPTO)
         return try {
             val inputStream = try {
@@ -548,6 +559,7 @@ class GpgExecutor(private val context: Context) {
                         plainStream = enc.getDataStream(
                             org.bouncycastle.openpgp.operator.bc.BcPublicKeyDataDecryptorFactory(privKey)
                         )
+                        AppLogger.d("decrypt() method=PUBKEY keyID=0x${java.lang.Long.toUnsignedString(enc.keyID, 16).uppercase()}", AppLogger.TAG_CRYPTO)
                         break@outer
                     }
                 }
@@ -564,7 +576,10 @@ class GpgExecutor(private val context: Context) {
                             )
                         )
                     } catch (e: Exception) { null }
-                    if (plainStream != null) break
+                    if (plainStream != null) {
+                        AppLogger.d("decrypt() method=SYMMETRIC", AppLogger.TAG_CRYPTO)
+                        break
+                    }
                 }
             }
 
@@ -586,10 +601,10 @@ class GpgExecutor(private val context: Context) {
             val outName = litData.fileName.ifBlank { decryptedName(dataFile.name) }
             val outFile = saveToDownloads(outName)
             outFile.outputStream().use { litData.inputStream.copyTo(it) }
-            AppLogger.d("decrypt() output=${outFile.absolutePath} size=${outFile.length()}B", AppLogger.TAG_CRYPTO)
+            AppLogger.i("decrypt() output=${outFile.absolutePath} size=${outFile.length()}B duration=${System.currentTimeMillis()-tDecrypt}ms", AppLogger.TAG_CRYPTO)
             DecryptResult(success = true, outputPath = outFile.absolutePath)
         } catch (e: Exception) {
-            AppLogger.d("decrypt() failed: ${e.message}", AppLogger.TAG_CRYPTO)
+            AppLogger.e("decrypt() failed: ${e.message}", AppLogger.TAG_CRYPTO)
             DecryptResult(false, errorMessage = e.message ?: "Decryption failed")
         }
     }
@@ -612,6 +627,7 @@ class GpgExecutor(private val context: Context) {
     // ── Generate Key ─────────────────────────────────────────────────────────
 
     fun generateKey(params: KeyGenParams): GpgOperationResult {
+        val tGenKey = System.currentTimeMillis()
         AppLogger.d("generateKey() name=${params.name} email=${params.email} keySize=${params.keySize} expiry=${params.expiry}d", AppLogger.TAG_CRYPTO)
         return try {
             val now = Date()
@@ -672,13 +688,14 @@ class GpgExecutor(private val context: Context) {
             val secs = loadSecretKeyring()?.toMutableList() ?: mutableListOf()
             secs.add(gen.generateSecretKeyRing())
             saveSecretKeyring(secs)
-            AppLogger.d("generateKey() success uid=$uid fingerprint computed", AppLogger.TAG_CRYPTO)
+            val genFp = bytesToHex(gen.generatePublicKeyRing().publicKey.fingerprint)
+            AppLogger.i("generateKey() success uid=$uid fp=$genFp duration=${System.currentTimeMillis()-tGenKey}ms", AppLogger.TAG_CRYPTO)
             GpgOperationResult.Success("Key generated: $uid")
         } catch (e: Exception) {
-            AppLogger.d("generateKey() failed: ${e.message}", AppLogger.TAG_CRYPTO)
-            AppLogger.d("generateKey() cause: ${e.cause?.message}", AppLogger.TAG_CRYPTO)
-            AppLogger.d("generateKey() exceptionClass: ${e.javaClass.name}", AppLogger.TAG_CRYPTO)
-            AppLogger.d("generateKey() stack: ${e.stackTrace.take(8).joinToString(" ↳ ") { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" }}", AppLogger.TAG_CRYPTO)
+            AppLogger.e("generateKey() failed: ${e.message}", AppLogger.TAG_CRYPTO)
+            AppLogger.e("generateKey() cause: ${e.cause?.message}", AppLogger.TAG_CRYPTO)
+            AppLogger.e("generateKey() exceptionClass: ${e.javaClass.name}", AppLogger.TAG_CRYPTO)
+            AppLogger.e("generateKey() stack: ${e.stackTrace.take(8).joinToString(" ↳ ") { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" }}", AppLogger.TAG_CRYPTO)
             GpgOperationResult.Failure(e.message ?: "Key generation failed")
         }
     }
@@ -744,9 +761,12 @@ class GpgExecutor(private val context: Context) {
                 val hasAnyKey = tryImportPublicKeys(bytes.inputStream()) >= 0 ||
                                 tryImportSecretKeys(bytes.inputStream()) >= 0
                 GpgOperationResult.Failure("Key already in keyring — no new key was imported")
-            } else GpgOperationResult.Success("Imported $pub public, $sec secret key(s)")
+            } else {
+                AppLogger.i("importKey() imported pub=$pub sec=$sec", AppLogger.TAG_CRYPTO)
+                GpgOperationResult.Success("Imported $pub public, $sec secret key(s)")
+            }
         } catch (e: Exception) {
-            AppLogger.d("importKey() failed: ${e.message}", AppLogger.TAG_CRYPTO)
+            AppLogger.e("importKey() failed: ${e.message}", AppLogger.TAG_CRYPTO)
             GpgOperationResult.Failure(e.message ?: "Import failed")
         }
     }
@@ -773,7 +793,7 @@ class GpgExecutor(private val context: Context) {
             AppLogger.d("tryImportBinary() pub=$pubCount sec=$secCount", AppLogger.TAG_CRYPTO)
             Pair(pubCount, secCount)
         } catch (e: Exception) {
-            AppLogger.d("tryImportBinary() warn: ${e.message}", AppLogger.TAG_CRYPTO)
+            AppLogger.w("tryImportBinary() warn: ${e.message}", AppLogger.TAG_CRYPTO)
             Pair(0, 0)
         }
     }
@@ -811,7 +831,7 @@ class GpgExecutor(private val context: Context) {
                 GpgOperationResult.Failure("Keyserver error HTTP $responseCode")
             }
         } catch (e: Exception) {
-            AppLogger.d("exportKeyToKeyserver() failed: ${e.message}", AppLogger.TAG_NET)
+            AppLogger.e("exportKeyToKeyserver() failed: ${e.message}", AppLogger.TAG_NET)
             GpgOperationResult.Failure(e.message ?: "Keyserver upload failed")
         }
     }
@@ -841,7 +861,7 @@ class GpgExecutor(private val context: Context) {
             val msg = if (count == 0) "Key already in keyring (no new key imported)" else "$count key(s) imported from $keyserver"
             GpgOperationResult.Success(msg)
         } catch (e: Exception) {
-            AppLogger.d("importKeyFromKeyserver() failed: ${e.message}", AppLogger.TAG_NET)
+            AppLogger.e("importKeyFromKeyserver() failed: ${e.message}", AppLogger.TAG_NET)
             GpgOperationResult.Failure(e.message ?: "Keyserver import failed")
         }
     }
@@ -907,19 +927,23 @@ class GpgExecutor(private val context: Context) {
     private fun loadPublicKeyring(): List<PGPPublicKeyRing>? {
         if (!publicKeyringFile.exists()) return null
         return try {
-            PGPPublicKeyRingCollection(
+            val rings = PGPPublicKeyRingCollection(
                 FileInputStream(publicKeyringFile), org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator()
             ).keyRings.asSequence().toList()
-        } catch (e: Exception) { AppLogger.d("loadPublicKeyring() failed: ${e.message}", AppLogger.TAG_IO); null }
+            AppLogger.d("loadPublicKeyring() rings=${rings.size} file=${publicKeyringFile.length()}B", AppLogger.TAG_IO)
+            rings
+        } catch (e: Exception) { AppLogger.e("loadPublicKeyring() failed: ${e.message}", AppLogger.TAG_IO); null }
     }
 
     private fun loadSecretKeyring(): List<PGPSecretKeyRing>? {
         if (!secretKeyringFile.exists()) return null
         return try {
-            PGPSecretKeyRingCollection(
+            val rings = PGPSecretKeyRingCollection(
                 FileInputStream(secretKeyringFile), org.bouncycastle.openpgp.operator.bc.BcKeyFingerprintCalculator()
             ).keyRings.asSequence().toList()
-        } catch (e: Exception) { AppLogger.d("loadSecretKeyring() failed: ${e.message}", AppLogger.TAG_IO); null }
+            AppLogger.d("loadSecretKeyring() rings=${rings.size} file=${secretKeyringFile.length()}B", AppLogger.TAG_IO)
+            rings
+        } catch (e: Exception) { AppLogger.e("loadSecretKeyring() failed: ${e.message}", AppLogger.TAG_IO); null }
     }
 
     private fun savePublicKeyring(rings: List<PGPPublicKeyRing>) {
@@ -960,13 +984,13 @@ class GpgExecutor(private val context: Context) {
                         existing
                     )
                 } catch (e: Exception) {
-                    AppLogger.d("tryImportPublicKeys block warn: ${e.message}", AppLogger.TAG_CRYPTO)
+                    AppLogger.w("tryImportPublicKeys block warn: ${e.message}", AppLogger.TAG_CRYPTO)
                 }
             }
             if (existing.isNotEmpty()) savePublicKeyring(existing.values.toList())
             count
         } catch (e: Exception) {
-            AppLogger.d("tryImportPublicKeys() failed: ${e.message}", AppLogger.TAG_CRYPTO)
+            AppLogger.e("tryImportPublicKeys() failed: ${e.message}", AppLogger.TAG_CRYPTO)
             0
         }
     }
@@ -994,7 +1018,7 @@ class GpgExecutor(private val context: Context) {
                 return count
             }
         } catch (e: Exception) {
-            AppLogger.d("importPublicRings Collection warn: ${e.message}", AppLogger.TAG_CRYPTO)
+            AppLogger.w("importPublicRings Collection warn: ${e.message}", AppLogger.TAG_CRYPTO)
         }
 
         // Attempt 2: PGPObjectFactory + re-parse via getEncoded()
@@ -1016,7 +1040,7 @@ class GpgExecutor(private val context: Context) {
                 obj = try { factory.nextObject() } catch (e: Exception) { null }
             }
         } catch (e: Exception) {
-            AppLogger.d("importPublicRings factory warn: ${e.message}", AppLogger.TAG_CRYPTO)
+            AppLogger.w("importPublicRings factory warn: ${e.message}", AppLogger.TAG_CRYPTO)
         }
 
         AppLogger.d("importPublicRingsFromStream total=$count", AppLogger.TAG_CRYPTO)
@@ -1039,7 +1063,7 @@ class GpgExecutor(private val context: Context) {
                         existing
                     )
                 } catch (e: Exception) {
-                    AppLogger.d("tryImportSecretKeys block warn: ${e.message}", AppLogger.TAG_CRYPTO)
+                    AppLogger.w("tryImportSecretKeys block warn: ${e.message}", AppLogger.TAG_CRYPTO)
                 }
             }
             if (existing.isNotEmpty()) {
@@ -1048,7 +1072,7 @@ class GpgExecutor(private val context: Context) {
             }
             count
         } catch (e: Exception) {
-            AppLogger.d("tryImportSecretKeys() failed: ${e.message}", AppLogger.TAG_CRYPTO)
+            AppLogger.e("tryImportSecretKeys() failed: ${e.message}", AppLogger.TAG_CRYPTO)
             0
         }
     }
@@ -1078,7 +1102,7 @@ class GpgExecutor(private val context: Context) {
                 return count
             }
         } catch (e: Exception) {
-            AppLogger.d("importSecretRings Collection warn: ${e.message}", AppLogger.TAG_CRYPTO)
+            AppLogger.w("importSecretRings Collection warn: ${e.message}", AppLogger.TAG_CRYPTO)
         }
 
         // Attempt 2: PGPObjectFactory + re-parse via getEncoded()
@@ -1100,7 +1124,7 @@ class GpgExecutor(private val context: Context) {
                 obj = try { factory.nextObject() } catch (e: Exception) { null }
             }
         } catch (e: Exception) {
-            AppLogger.d("importSecretRings factory warn: ${e.message}", AppLogger.TAG_CRYPTO)
+            AppLogger.w("importSecretRings factory warn: ${e.message}", AppLogger.TAG_CRYPTO)
         }
 
         if (count > 0) extractPublicKeysFromSecretRings(existing.values.toList())
@@ -1134,7 +1158,7 @@ class GpgExecutor(private val context: Context) {
                 AppLogger.d("extractPublicKeysFromSecretRings — added $added pub ring(s) to pubring", AppLogger.TAG_CRYPTO)
             }
         } catch (e: Exception) {
-            AppLogger.d("extractPublicKeysFromSecretRings warn: ${e.message}", AppLogger.TAG_CRYPTO)
+            AppLogger.w("extractPublicKeysFromSecretRings warn: ${e.message}", AppLogger.TAG_CRYPTO)
         }
     }
 
@@ -1151,7 +1175,7 @@ class GpgExecutor(private val context: Context) {
                 obj = factory.nextObject()
             }
             sigs
-        } catch (e: Exception) { AppLogger.d("loadSignatures() failed: ${e.message}", AppLogger.TAG_CRYPTO); sigs }
+        } catch (e: Exception) { AppLogger.e("loadSignatures() failed: ${e.message}", AppLogger.TAG_CRYPTO); sigs }
     }
 
     private fun findPublicKey(rings: List<PGPPublicKeyRing>, keyId: Long): PGPPublicKey? {
@@ -1283,8 +1307,10 @@ class GpgExecutor(private val context: Context) {
             factory2.nextObject() // skip OnePassSignatureList
             val litData = factory2.nextObject() as? PGPLiteralData
                 ?: return VerificationResult(false, "", "", "", "", "Literal data not found")
+            var embeddedDataSize = 0L
             val buf = ByteArray(8192); var n: Int
-            while (litData.inputStream.read(buf).also { n = it } >= 0) ops.update(buf, 0, n)
+            while (litData.inputStream.read(buf).also { n = it } >= 0) { ops.update(buf, 0, n); embeddedDataSize += n }
+            AppLogger.d("verifyEmbedded: literalDataSize=${embeddedDataSize}B filename=${litData.fileName}", AppLogger.TAG_CRYPTO)
 
             // Pass 3: read signature list and verify
             val factory3 = nextFrom(innerBytes)
@@ -1308,7 +1334,7 @@ class GpgExecutor(private val context: Context) {
                 errorMessage  = if (!valid) "Invalid signature" else null
             )
         } catch (e: Exception) {
-            AppLogger.d("verifyEmbedded() failed: ${e.message}", AppLogger.TAG_CRYPTO)
+            AppLogger.e("verifyEmbedded() failed: ${e.message}", AppLogger.TAG_CRYPTO)
             VerificationResult(false, "", "", "", "", e.message ?: "Embedded verification failed")
         }
     }
