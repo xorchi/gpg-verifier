@@ -266,8 +266,8 @@ class GpgExecutor(private val context: Context) {
             // whether the file came from GPG/Termux (\n) or a Windows tool (\r\n).
             val normalised = signedText.replace("\r\n", "\n").replace("\r", "\n")
             val canonicalText = normalised.split("\n")
-                .joinToString("\r\n") { it.trimEnd() }
-                .trimEnd('\r', '\n') + "\r\n"
+                .dropLastWhile { it.trimEnd().isEmpty() }
+                .joinToString("\r\n") { it.trimEnd() } + "\r\n"
 
             for (sig in sigs) {
                 val pubKey = findPublicKey(pubRings, sig.keyID) ?: continue
@@ -421,8 +421,8 @@ class GpgExecutor(private val context: Context) {
                     // Canonical form fed to the signature engine: trailing whitespace
                     // stripped per line, joined with \r\n, terminated with \r\n.
                     val canonical = linesLF.split("\n")
-                        .joinToString("\r\n") { it.trimEnd() }
-                        .trimEnd('\r', '\n') + "\r\n"
+                        .dropLastWhile { it.trimEnd().isEmpty() }
+                        .joinToString("\r\n") { it.trimEnd() } + "\r\n"
 
                     val canonBytes = canonical.toByteArray(Charsets.UTF_8)
                     AppLogger.d("sign(CLEARSIGN): canonicalLen=${canonBytes.size}B bodyLines=${linesLF.split("\n").size}", AppLogger.TAG_CRYPTO)
