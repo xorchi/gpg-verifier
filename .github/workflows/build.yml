@@ -1,7 +1,13 @@
 name: Build & Sign APK
 on:
   push:
-    branches: [ master ]
+    branches: [ master, dev ]
+    paths:
+      - 'app/**'
+      - 'gradle/**'
+      - '*.gradle.kts'
+      - 'gradle.properties'
+      - '.github/workflows/build.yml'
   pull_request:
     branches: [ master ]
   workflow_dispatch:
