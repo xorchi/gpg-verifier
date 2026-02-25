@@ -6,6 +6,8 @@ Built with **Kotlin + Jetpack Compose**. Uses [Bouncy Castle](https://www.bouncy
 
 > **Minimum SDK:** Android 8.0 (API 26)  
 > **Build:** Automated via GitHub Actions → APK available under [Releases](../../releases)
+>
+> **Latest Release:** [v1.0.0](https://github.com/xorchi/gpg-verifier/releases/tag/v1.0.0)
 
 ---
 
@@ -197,6 +199,8 @@ git push origin v1.0.0
 | Embedded armored | `.gpg.asc` | Signed + compressed, armored |
 | Embedded binary | `.gpg` | Signed + compressed, binary |
 
+Available hash algorithms: **SHA-256** (default), **SHA-512**
+
 5. Enter the key passphrase
 6. Tap **Sign** → save or share the output file
 
@@ -260,7 +264,7 @@ docs/xorchi-gpg-pubkey.asc
 
 **Fingerprint:**
 ```
-DD88 E7E14 A5A8 92D5 DC5D 4A44 B495 F62C BB37 CFF
+DD88 E7E1 4A5A 892D 5DC5  D4A4 4B49 5F62 CBB3 7CFF
 
 ```
 
@@ -275,25 +279,25 @@ gpg --import docs/xorchi-gpg-pubkey.asc
 
 Or directly from a keyserver:
 ```bash
-gpg --keyserver hkps://keys.openpgp.org \
-    --recv-keys DD88E7E14A5A892D5DC5D4A44B495F62CBB37CFF
+gpg --keyserver hkps://keyserver.ubuntu.com \
+    --recv-keys 4B495F62CBB37CFF
 ```
 
 **2. Download the APK and its detached signature**
 
 From the [Releases](../../releases) page, download both files:
-- `gpg-verifier-v*.apk`
-- `gpg-verifier-v*.apk.asc`
+- `GPG-Verifier.apk`
+- `GPG-Verifier.apk.asc`
 
 **3. Run the verification**
 
 ```bash
-gpg --verify gpg-verifier-v*.apk.asc gpg-verifier-v*.apk
+gpg --verify GPG-Verifier.apk.asc GPG-Verifier.apk
 ```
 
 **Expected output (good signature):**
 ```
-gpg: Signature made <date> using RSA key DD88E7E14A5A892D5DC5D4A44B495F62CBB37CFF
+gpg: Signature made <date> using EDDSA key 4B495F62CBB37CFF
 gpg: Good signature from "xorchi <jperkasa8@gmail.com>"
 ```
 
