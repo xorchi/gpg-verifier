@@ -1,21 +1,15 @@
 name: Build & Sign APK
 on:
-  workflow_dispatch:
   push:
-    branches: [ master ]
-    paths:
-      - 'app/src/**'
-      - 'app/build.gradle.kts'
-      - 'gradle/libs.versions.toml'
+    branches: [ master, feat-debugging-logger ]
   pull_request:
     branches: [ master ]
-  tags:
-    - 'v*'
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     steps:
       - name: Checkout repository
@@ -49,6 +43,15 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x gradlew
 
+      - name: Generate gradle.properties
+        run: |
+          cat > gradle.properties << EOF
+          android.useAndroidX=true
+          android.enableJetifier=true
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          org.gradle.daemon=false
+          EOF
+
       - name: Build Release APK
         env:
           KEYSTORE_PATH: keystore.jks
@@ -62,7 +65,7 @@ jobs:
         with:
           name: gpg-verifier-signed-apk
           path: app/build/outputs/apk/release/*.apk
-          retention-days: 30
+          retention-days: 7
 
       - name: Cleanup sensitive files
         if: always()
