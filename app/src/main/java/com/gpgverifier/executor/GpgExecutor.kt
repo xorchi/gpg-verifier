@@ -6,8 +6,10 @@ import com.gpgverifier.util.AppLogger
 import org.bouncycastle.bcpg.ArmoredOutputStream
 
 import org.bouncycastle.bcpg.HashAlgorithmTags
+import org.bouncycastle.bcpg.PublicKeyAlgorithmTags
 import org.bouncycastle.bcpg.SymmetricKeyAlgorithmTags
 import org.bouncycastle.bcpg.sig.KeyFlags
+import org.bouncycastle.openpgp.operator.jcajce.JcePBESecretKeyDecryptorBuilder
 import org.bouncycastle.openpgp.*
 import org.bouncycastle.openpgp.operator.jcajce.*
 import java.io.InputStream
@@ -107,26 +109,41 @@ class GpgExecutor(private val context: Context) {
     }
 
     /**
-     * Selects the verifier provider based on the detected hash algorithm.
+     * Selects the verifier provider based on BOTH the key algorithm and hash algorithm.
      *
-     * BcPGPContentVerifierBuilderProvider (lightweight) does not always support
-     * SHA-384, SHA-512, SHA3-* on all Android builds — specifically because
-     * lightweight BC uses internal cipher implementations rather than JCA.
-     * JcaPGPContentVerifierBuilderProvider delegates to the full JCE/BouncyCastle
-     * (bcprov) which supports all standard OpenPGP algorithms.
+     * Rules:
+     *  - EdDSA (Ed25519, algo 22) and ECDSA (algo 19) MUST use JCA provider.
+     *    The lightweight Bc provider does not implement these curves on Android.
+     *  - DSA (algo 17) requires JCA for SHA-256+ hashes.
+     *  - RSA with SHA-1 or SHA-256 can use the lightweight Bc provider.
+     *  - Everything else defaults to JCA (full bcprov) for maximum compatibility.
      */
     private fun resolveVerifierProvider(
-        hashAlgTag: Int
-    ): org.bouncycastle.openpgp.operator.PGPContentVerifierBuilderProvider =
-        when (hashAlgTag) {
+        hashAlgTag: Int,
+        keyAlgTag: Int = -1
+    ): org.bouncycastle.openpgp.operator.PGPContentVerifierBuilderProvider {
+        // EdDSA (22) and ECDSA (19) always require JCA — no exceptions
+        val isEdDsaOrEcdsa = keyAlgTag == org.bouncycastle.bcpg.PublicKeyAlgorithmTags.EDDSA ||
+                             keyAlgTag == org.bouncycastle.bcpg.PublicKeyAlgorithmTags.ECDSA ||
+                             keyAlgTag == 22 // Ed25519 literal constant for older bcpg versions
+
+        if (isEdDsaOrEcdsa) {
+            AppLogger.d("resolveVerifierProvider: keyAlg=$keyAlgTag → JCA (EdDSA/ECDSA)", AppLogger.TAG_CRYPTO)
+            return org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentVerifierBuilderProvider()
+                .setProvider(BC_PROVIDER)
+        }
+
+        return when (hashAlgTag) {
             org.bouncycastle.bcpg.HashAlgorithmTags.SHA1,
             org.bouncycastle.bcpg.HashAlgorithmTags.SHA256 ->
+                // RSA + SHA-1/256: lightweight Bc is sufficient
                 org.bouncycastle.openpgp.operator.bc.BcPGPContentVerifierBuilderProvider()
             else ->
                 // SHA-384, SHA-512, SHA-224, SHA3-* → use JCA (full bcprov)
                 org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentVerifierBuilderProvider()
                     .setProvider(BC_PROVIDER)
         }
+    }
 
     companion object {
         /** Singleton BouncyCastleProvider — avoid re-instantiation on every verify call */
@@ -160,7 +177,7 @@ class GpgExecutor(private val context: Context) {
                 val algTag  = sig.hashAlgorithm
                 val dataBytes = dataFile.readBytes()
                 AppLogger.d("verify: hashAlg=${hashAlgorithmName(algTag)} keyID=0x${sig.keyID.let { java.lang.Long.toUnsignedString(it, 16).uppercase() }} dataSize=${dataBytes.size}B uid=${(pubKey.userIDs.asSequence().firstOrNull() ?: "?")} keyAlg=${pubKey.algorithm}", AppLogger.TAG_CRYPTO)
-                sig.init(resolveVerifierProvider(algTag), pubKey)
+                sig.init(resolveVerifierProvider(algTag, pubKey.algorithm), pubKey)
                 sig.update(dataBytes)
                 val valid = sig.verify()
                 AppLogger.d("verify: cryptographic check result=${if (valid) "PASS" else "FAIL"}", AppLogger.TAG_CRYPTO)
@@ -257,7 +274,7 @@ class GpgExecutor(private val context: Context) {
                 val algTag  = sig.hashAlgorithm
                 val canonicalBytes = canonicalText.toByteArray(Charsets.UTF_8)
                 AppLogger.d("verifyClearSign: hashAlg=${hashAlgorithmName(algTag)} keyID=0x${sig.keyID.let { java.lang.Long.toUnsignedString(it, 16).uppercase() }} canonicalLen=${canonicalBytes.size}B uid=${(pubKey.userIDs.asSequence().firstOrNull() ?: "?")} keyAlg=${pubKey.algorithm}", AppLogger.TAG_CRYPTO)
-                sig.init(resolveVerifierProvider(algTag), pubKey)
+                sig.init(resolveVerifierProvider(algTag, pubKey.algorithm), pubKey)
                 sig.update(canonicalBytes)
                 val valid = sig.verify()
                 AppLogger.d("verifyClearSign: cryptographic check result=${if (valid) "PASS" else "FAIL"}", AppLogger.TAG_CRYPTO)
@@ -321,9 +338,23 @@ class GpgExecutor(private val context: Context) {
             val secRing = findSecretKeyRing(keyFingerprint)
                 ?: return SignResult(false, errorMessage = "Secret key not found")
             val secKey = secRing.secretKey
-            val privateKey = secKey.extractPrivateKey(
-                org.bouncycastle.openpgp.operator.bc.BcPBESecretKeyDecryptorBuilder(org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider()).build(passphrase.toCharArray())
-            )
+            // EdDSA/ECDSA secret keys must be decrypted via JCA provider on Android
+            val keyAlgForDecrypt = secKey.publicKey.algorithm
+            val isEdDsaOrEcdsaKey = keyAlgForDecrypt == org.bouncycastle.bcpg.PublicKeyAlgorithmTags.EDDSA ||
+                                     keyAlgForDecrypt == org.bouncycastle.bcpg.PublicKeyAlgorithmTags.ECDSA ||
+                                     keyAlgForDecrypt == 22
+            val privateKey = if (isEdDsaOrEcdsaKey) {
+                secKey.extractPrivateKey(
+                    org.bouncycastle.openpgp.operator.jcajce.JcePBESecretKeyDecryptorBuilder()
+                        .setProvider(BC_PROVIDER).build(passphrase.toCharArray())
+                )
+            } else {
+                secKey.extractPrivateKey(
+                    org.bouncycastle.openpgp.operator.bc.BcPBESecretKeyDecryptorBuilder(
+                        org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider()
+                    ).build(passphrase.toCharArray())
+                )
+            }
             val ext = when (mode) {
                 SignMode.DETACH_ARMOR -> ".asc"
                 SignMode.DETACH       -> ".sig"
@@ -338,10 +369,21 @@ class GpgExecutor(private val context: Context) {
                 SignMode.CLEARSIGN -> PGPSignature.CANONICAL_TEXT_DOCUMENT
                 else               -> PGPSignature.BINARY_DOCUMENT
             }
-            val sigGen = PGPSignatureGenerator(
+            // For EdDSA (22) and ECDSA (19), BcPGPContentSignerBuilder does not work on Android.
+            // JcaPGPContentSignerBuilder via full bcprov is required.
+            val keyAlgorithm = secKey.publicKey.algorithm
+            val isEdDsaOrEcdsa = keyAlgorithm == org.bouncycastle.bcpg.PublicKeyAlgorithmTags.EDDSA ||
+                                  keyAlgorithm == org.bouncycastle.bcpg.PublicKeyAlgorithmTags.ECDSA ||
+                                  keyAlgorithm == 22
+            val contentSignerBuilder = if (isEdDsaOrEcdsa) {
+                AppLogger.d("sign(): keyAlg=$keyAlgorithm → JcaPGPContentSignerBuilder (EdDSA/ECDSA)", AppLogger.TAG_CRYPTO)
+                org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentSignerBuilder(
+                    keyAlgorithm, hashAlgorithm.tag).setProvider(BC_PROVIDER)
+            } else {
                 org.bouncycastle.openpgp.operator.bc.BcPGPContentSignerBuilder(
-                    secKey.publicKey.algorithm, hashAlgorithm.tag)
-            ).apply {
+                    keyAlgorithm, hashAlgorithm.tag)
+            }
+            val sigGen = PGPSignatureGenerator(contentSignerBuilder).apply {
                 init(sigType, privateKey)
                 val sub = PGPSignatureSubpacketGenerator()
                 sub.addSignerUserID(false, (secKey.userIDs.asSequence().firstOrNull() ?: "") as String)
@@ -1299,8 +1341,8 @@ class GpgExecutor(private val context: Context) {
             val pubKey = findPublicKey(pubRings, ops.keyID)
                 ?: return VerificationResult(false, "", "", "", "", "Public key not found in keyring")
             val algTag = ops.hashAlgorithm
-            AppLogger.d("verifyEmbedded: hashAlg=${hashAlgorithmName(algTag)} keyID=0x${ops.keyID.let { java.lang.Long.toUnsignedString(it, 16).uppercase() }}", AppLogger.TAG_CRYPTO)
-            ops.init(resolveVerifierProvider(algTag), pubKey)
+            AppLogger.d("verifyEmbedded: hashAlg=${hashAlgorithmName(algTag)} keyID=0x${ops.keyID.let { java.lang.Long.toUnsignedString(it, 16).uppercase() }} keyAlg=${pubKey.algorithm}", AppLogger.TAG_CRYPTO)
+            ops.init(resolveVerifierProvider(algTag, pubKey.algorithm), pubKey)
 
             // Pass 2: read literal data and feed it to the verifier
             val factory2 = nextFrom(innerBytes)
