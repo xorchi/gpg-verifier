@@ -213,7 +213,7 @@ fun KeyringScreen(modifier: Modifier = Modifier) {
         }
     }
 
-    // Dialog import dari keyserver
+    // Import from keyserver dialog
     if (showKeyserverImportDialog) {
         KeyserverImportDialog(onDismiss = { showKeyserverImportDialog = false }) { keyId, ks ->
             showKeyserverImportDialog = false
@@ -229,7 +229,7 @@ fun KeyringScreen(modifier: Modifier = Modifier) {
         }
     }
 
-    // Dialog upload ke keyserver
+    // Upload to keyserver dialog
     if (showKeyserverUploadDialog && uploadTargetKey != null) {
         KeyserverUploadDialog(
             key = uploadTargetKey!!,
@@ -376,7 +376,7 @@ fun KeyCard(
                     }
                 }
                 Spacer(Modifier.height(4.dp))
-                // Tombol upload ke keyserver
+                // Upload to keyserver button
                 OutlinedButton(onClick = onUploadToKeyserver, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.CloudUpload, null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp)); Text("Upload to Keyserver")

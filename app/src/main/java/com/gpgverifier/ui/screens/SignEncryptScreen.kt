@@ -366,7 +366,7 @@ fun SuccessCard(message: String, outputPath: String? = null) {
                     Text(message, style = MaterialTheme.typography.bodyMedium)
                     if (fileName.isNotBlank()) {
                         Text(
-                            "Tersimpan di Download/$fileName",
+                            "Saved to Download/$fileName",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
@@ -379,7 +379,7 @@ fun SuccessCard(message: String, outputPath: String? = null) {
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(Icons.Default.Share, null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp)); Text("Bagikan")
+                    Spacer(Modifier.width(4.dp)); Text("Share")
                 }
             }
         }

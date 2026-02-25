@@ -8,7 +8,7 @@ data class VerificationResult(
     val trustLevel: String,
     val rawOutput: String,
     val errorMessage: String? = null,
-    val hashAlgorithm: String = ""   // algoritma hash yang terdeteksi dari paket signature
+    val hashAlgorithm: String = ""   // hash algorithm auto-detected from the signature packet
 )
 
 data class GpgKey(

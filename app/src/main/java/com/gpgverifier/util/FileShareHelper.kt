@@ -19,7 +19,7 @@ object FileShareHelper {
     fun shareFile(context: Context, filePath: String) {
         val file = File(filePath)
         if (!file.exists()) {
-            AppLogger.log("WARN: shareFile — file not found: $filePath")
+            AppLogger.w("shareFile() file not found: $filePath", AppLogger.TAG_IO)
             return
         }
         val uri: Uri = FileProvider.getUriForFile(
@@ -33,7 +33,7 @@ object FileShareHelper {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         context.startActivity(Intent.createChooser(intent, "Save / Share Files"))
-        AppLogger.log("INFO: shareFile — share sheet opened for ${file.name}")
+        AppLogger.i("shareFile() share sheet opened for ${file.name}", AppLogger.TAG_IO)
     }
 
     fun saveToDownloads(context: Context, filePath: String): String? {
@@ -44,10 +44,10 @@ object FileShareHelper {
             downloadsDir.mkdirs()
             val dest = File(downloadsDir, src.name)
             FileInputStream(src).use { ins -> FileOutputStream(dest).use { ins.copyTo(it) } }
-            AppLogger.log("INFO: saveToDownloads — saved to ${dest.absolutePath}")
+            AppLogger.i("saveToDownloads() saved to ${dest.absolutePath} (${dest.length()} bytes)", AppLogger.TAG_IO)
             dest.absolutePath
         } catch (e: Exception) {
-            AppLogger.log("ERROR saveToDownloads: ${e.message}")
+            AppLogger.ex("saveToDownloads", e, AppLogger.TAG_IO)
             null
         }
     }
@@ -67,10 +67,10 @@ object FileShareHelper {
             context.contentResolver.openOutputStream(destUri)?.use { out ->
                 src.inputStream().use { it.copyTo(out) }
             }
-            AppLogger.log("INFO: copyToUri — successfully copied ${src.name}")
+            AppLogger.i("copyToUri() successfully copied ${src.name}", AppLogger.TAG_IO)
             true
         } catch (e: Exception) {
-            AppLogger.log("ERROR copyToUri: ${e.message}")
+            AppLogger.ex("copyToUri", e, AppLogger.TAG_IO)
             false
         }
     }

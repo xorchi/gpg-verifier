@@ -59,7 +59,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         if (Security.getProvider("BC") == null) Security.addProvider(BouncyCastleProvider())
         AppLogger.init(filesDir)
-        AppLogger.log("INFO: App started - onCreate()")
+        AppLogger.i("App started — Build ${android.os.Build.VERSION.SDK_INT} device=${android.os.Build.MODEL}")
         checkAndRequestPermissions()
         enableEdgeToEdge()
         setContent { GPGVerifierTheme { MainScaffold(filesDir) } }
@@ -68,11 +68,11 @@ class MainActivity : ComponentActivity() {
     private fun checkAndRequestPermissions() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             if (!Environment.isExternalStorageManager()) {
-                AppLogger.log("INFO: Requesting All Files Access permission.")
+                AppLogger.i("Requesting All Files Access permission (API >= 30)")
                 startActivity(Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
                     .apply { data = Uri.parse("package:$packageName") })
             } else {
-                AppLogger.log("INFO: All Files Access permission has been granted")
+                AppLogger.i("All Files Access permission already granted")
             }
         } else {
             val perms = mutableListOf<String>()
@@ -87,8 +87,10 @@ class MainActivity : ComponentActivity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 100) {
-            AppLogger.log(if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)
-                "INFO: Izin storage diberikan." else "WARN: Izin storage ditolak.")
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)
+                AppLogger.i("Storage permission granted")
+            else
+                AppLogger.w("Storage permission denied by user")
         }
     }
 }
@@ -109,7 +111,7 @@ fun MainScaffold(filesDir: File) {
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface),
                 actions = {
-                    // Tombol export log ke /sdcard/Download/
+                    // Export log button — copies app.log to /sdcard/Download/
                     IconButton(onClick = {
                         scope.launch {
                             try {
@@ -117,14 +119,14 @@ fun MainScaffold(filesDir: File) {
                                 val dst = File("/sdcard/Download/gpgverifier-app.log")
                                 if (src.exists()) {
                                     src.copyTo(dst, overwrite = true)
-                                    AppLogger.log("INFO: Log diekspor ke ${dst.absolutePath}")
-                                    snackState.showSnackbar("✓ Log diekspor ke Download/gpgverifier-app.log")
+                                    AppLogger.i("Log exported to ${dst.absolutePath} (${dst.length()} bytes)")
+                                    snackState.showSnackbar("✓ Log exported to Download/gpgverifier-app.log")
                                 } else {
-                                    snackState.showSnackbar("✗ File log belum ada")
+                                    snackState.showSnackbar("✗ Log file does not exist yet")
                                 }
                             } catch (e: Exception) {
-                                AppLogger.log("ERROR: Export log gagal: ${e.message}")
-                                snackState.showSnackbar("✗ Export log gagal: ${e.message}")
+                                AppLogger.ex("exportLog", e)
+                                snackState.showSnackbar("✗ Log export failed: ${e.message}")
                             }
                         }
                     }) {

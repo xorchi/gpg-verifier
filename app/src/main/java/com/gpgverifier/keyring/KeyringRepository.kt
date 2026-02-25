@@ -16,12 +16,12 @@ class KeyringRepository(context: Context) {
     // ── Verify (detached) ────────────────────────────────────────────────────
     suspend fun verify(dataUri: Uri, sigUri: Uri, context: Context): VerificationResult =
         withContext(Dispatchers.IO) {
-            AppLogger.log("DEBUG: verify dipanggil")
+            AppLogger.d("verify() dispatched — dataUri=$dataUri sigUri=$sigUri", AppLogger.TAG_IO)
             val dataFile = uriToTempFile(dataUri, context, "data_file")
             val sigFile  = uriToTempFile(sigUri,  context, "sig_file")
             try {
                 executor.verify(dataFile, sigFile).also {
-                    AppLogger.log("INFO: Verifikasi ${if (it.isValid) "sukses" else "gagal"}")
+                    AppLogger.i("verify() result=${if (it.isValid) "VALID" else "INVALID"} signedBy=${it.signedBy} hash=${it.hashAlgorithm}", AppLogger.TAG_CRYPTO)
                 }
             } finally { dataFile.delete(); sigFile.delete() }
         }
@@ -29,11 +29,11 @@ class KeyringRepository(context: Context) {
     // ── Verify ClearSign (single file) ───────────────────────────────────────
     suspend fun verifyClearSign(clearSignUri: Uri, context: Context): VerificationResult =
         withContext(Dispatchers.IO) {
-            AppLogger.log("DEBUG: verifyClearSign dipanggil")
+            AppLogger.d("verifyClearSign() dispatched — clearSignUri=$clearSignUri", AppLogger.TAG_IO)
             val clearSignFile = uriToTempFile(clearSignUri, context, "clearsign_file")
             try {
                 executor.verifyClearSign(clearSignFile).also {
-                    AppLogger.log("INFO: ClearSign verifikasi ${if (it.isValid) "sukses" else "gagal"}")
+                    AppLogger.i("verifyClearSign() result=${if (it.isValid) "VALID" else "INVALID"} signedBy=${it.signedBy} hash=${it.hashAlgorithm}", AppLogger.TAG_CRYPTO)
                 }
             } finally { clearSignFile.delete() }
         }
@@ -83,13 +83,13 @@ class KeyringRepository(context: Context) {
 
     // ── Keys ─────────────────────────────────────────────────────────────────
     suspend fun listPublicKeys(): List<GpgKey> = withContext(Dispatchers.IO) {
-        try { AppLogger.log("DEBUG: Mencoba listPublicKeys"); executor.listKeys() }
-        catch (e: Exception) { AppLogger.log("ERROR listPublicKeys: ${e.message}"); emptyList() }
+        try { AppLogger.d("listPublicKeys() starting", AppLogger.TAG_KEYRING); executor.listKeys() }
+        catch (e: Exception) { AppLogger.ex("listPublicKeys", e, AppLogger.TAG_KEYRING); emptyList() }
     }
 
     suspend fun listSecretKeys(): List<GpgKey> = withContext(Dispatchers.IO) {
         try { executor.listSecretKeys() }
-        catch (e: Exception) { AppLogger.log("ERROR listSecretKeys: ${e.message}"); emptyList() }
+        catch (e: Exception) { AppLogger.ex("listSecretKeys", e, AppLogger.TAG_KEYRING); emptyList() }
     }
 
     suspend fun importKeyFromFile(uri: Uri, context: Context): GpgOperationResult =
@@ -145,7 +145,7 @@ class KeyringRepository(context: Context) {
     }
 
     private fun getOriginalFileName(uri: Uri, context: Context): String {
-        // Coba baca display name via ContentResolver
+        // Try to read display name via ContentResolver
         context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
             val col = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
             if (col != -1 && cursor.moveToFirst()) {
@@ -153,7 +153,7 @@ class KeyringRepository(context: Context) {
                 if (!name.isNullOrBlank()) return name
             }
         }
-        // Fallback: ambil segmen terakhir dari path URI
+        // Fallback: use last path segment of the URI
         return uri.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':') ?: "output"
     }
 }
