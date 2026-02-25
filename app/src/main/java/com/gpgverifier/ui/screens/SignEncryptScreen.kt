@@ -172,7 +172,7 @@ fun SignTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope, s
                 Text("Sign", fontWeight = FontWeight.Bold)
             }
 
-            outputPath?.let { SuccessCard("Signed file berhasil dibuat.", outputPath = it) }
+            outputPath?.let { SuccessCard("Signed file created successfully.", outputPath = it) }
         }
     }
 }
@@ -203,7 +203,7 @@ fun EncryptTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text("Encrypt File (Asymmetric)", style = MaterialTheme.typography.titleMedium)
-            Text("Enkripsi dengan public key penerima.", style = MaterialTheme.typography.bodySmall,
+            Text("Encrypt using recipient's public key.", style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
 
             FilePickerCard("Input File", inputUri, Icons.Default.InsertDriveFile) { filePicker.launch("*/*") }
@@ -243,7 +243,7 @@ fun EncryptTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope
             Button(
                 onClick = {
                     val uri = inputUri ?: return@Button
-                    if (selected.isEmpty()) { resultMsg = "Pilih minimal satu recipient"; return@Button }
+                    if (selected.isEmpty()) { resultMsg = "Select at least one recipient"; return@Button }
                     scope.launch {
                         isLoading = true; outputPath = null
                         val res = repo.encrypt(uri, context, selected.toList(), armor)
@@ -260,7 +260,7 @@ fun EncryptTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope
                 Text("Encrypt", fontWeight = FontWeight.Bold)
             }
 
-            outputPath?.let { SuccessCard("Encrypted file berhasil dibuat.", outputPath = it) }
+            outputPath?.let { SuccessCard("Encrypted file created successfully.", outputPath = it) }
         }
     }
 }
@@ -292,7 +292,7 @@ fun SymmetricEncryptTab(repo: KeyringRepository, scope: kotlinx.coroutines.Corou
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text("Encrypt File (Symmetric)", style = MaterialTheme.typography.titleMedium)
-            Text("Enkripsi dengan passphrase — tidak memerlukan key pair.",
+            Text("Encrypt with passphrase — no key pair required.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
 
@@ -307,13 +307,13 @@ fun SymmetricEncryptTab(repo: KeyringRepository, scope: kotlinx.coroutines.Corou
 
             OutlinedTextField(
                 value = confirm, onValueChange = { confirm = it },
-                label = { Text("Konfirmasi Passphrase") },
+                label = { Text("Confirm Passphrase") },
                 visualTransformation = PasswordVisualTransformation(),
                 modifier = Modifier.fillMaxWidth(), singleLine = true,
                 isError = confirm.isNotEmpty() && !passphraseMatch,
                 supportingText = {
                     if (confirm.isNotEmpty() && !passphraseMatch)
-                        Text("Passphrase tidak cocok", color = MaterialTheme.colorScheme.error)
+                        Text("Passphrase does not match", color = MaterialTheme.colorScheme.error)
                 }
             )
 
@@ -326,7 +326,7 @@ fun SymmetricEncryptTab(repo: KeyringRepository, scope: kotlinx.coroutines.Corou
             Button(
                 onClick = {
                     val uri = inputUri ?: return@Button
-                    if (!passphraseMatch) { resultMsg = "Passphrase tidak cocok"; return@Button }
+                    if (!passphraseMatch) { resultMsg = "Passphrase does not match"; return@Button }
                     scope.launch {
                         isLoading = true; outputPath = null
                         val res = repo.encryptSymmetric(uri, context, passphrase, armor)
@@ -343,7 +343,7 @@ fun SymmetricEncryptTab(repo: KeyringRepository, scope: kotlinx.coroutines.Corou
                 Text("Encrypt (Symmetric)", fontWeight = FontWeight.Bold)
             }
 
-            outputPath?.let { SuccessCard("Encrypted file berhasil dibuat.", outputPath = it) }
+            outputPath?.let { SuccessCard("Encrypted file created successfully.", outputPath = it) }
         }
     }
 }

@@ -78,9 +78,9 @@ fun VerifyScreen(modifier: Modifier = Modifier) {
                     )
                     Text(
                         when (verifyMode) {
-                            1 -> "Satu file .asc berisi teks + signature"
-                            2 -> "File .gpg/.asc berisi data + signature sekaligus"
-                            else -> "File data + file signature terpisah"
+                            1 -> "Single .asc file containing text + signature"
+                            2 -> "Embedded .gpg/.asc file with data + signature"
+                            else -> "Separate data file + signature file"
                         },
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
@@ -235,7 +235,7 @@ fun VerificationResultCard(
                 )
                 Spacer(Modifier.width(12.dp))
                 Text(
-                    if (isValid) "Signature Valid" else "Signature Tidak Valid",
+                    if (isValid) "Signature Valid" else "Signature Invalid",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = if (isValid) MaterialTheme.colorScheme.primary
@@ -259,7 +259,7 @@ fun VerificationResultCard(
             }
 
             TextButton(onClick = onToggleRaw) {
-                Text(if (showRawOutput) "Sembunyikan Raw Output" else "Tampilkan Raw Output")
+                Text(if (showRawOutput) "Hide Raw Output" else "Show Raw Output")
             }
 
             if (showRawOutput) {

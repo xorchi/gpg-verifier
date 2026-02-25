@@ -171,7 +171,7 @@ fun KeyringScreen(modifier: Modifier = Modifier) {
                                 onTrust = { selectedKey = key },
                                 onCopyFingerprint = {
                                     clipboard.setText(AnnotatedString(key.fingerprint))
-                                    scope.launch { snackMsg = "✓ Fingerprint disalin ke clipboard" }
+                                    scope.launch { snackMsg = "✓ Fingerprint copied to clipboard" }
                                 }
                             )
                         }
@@ -351,23 +351,27 @@ fun KeyCard(
                     }
                 }
                 Spacer(Modifier.height(8.dp))
+                // Row 1: Trust + Copy pub key
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = onTrust, modifier = Modifier.weight(1f)) {
                         Icon(Icons.Default.Shield, null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp)); Text("Trust")
                     }
                     OutlinedButton(onClick = onExportPublic, modifier = Modifier.weight(1f)) {
-                        Icon(Icons.Default.Share, null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp)); Text("Export Pub")
+                        Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp)); Text("Copy Pub")
                     }
+                }
+                // Row 2: Save pub + Save priv (jika ada)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = onBackupPublic, modifier = Modifier.weight(1f)) {
                         Icon(Icons.Default.Save, null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp)); Text("Export Pub")
+                        Spacer(Modifier.width(4.dp)); Text("Save Pub")
                     }
                     if (onBackupSecret != null) {
                         OutlinedButton(onClick = onBackupSecret, modifier = Modifier.weight(1f)) {
                             Icon(Icons.Default.Lock, null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(4.dp)); Text("Export Priv")
+                            Spacer(Modifier.width(4.dp)); Text("Save Priv")
                         }
                     }
                 }
@@ -375,15 +379,43 @@ fun KeyCard(
                 // Tombol upload ke keyserver
                 OutlinedButton(onClick = onUploadToKeyserver, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.CloudUpload, null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp)); Text("Upload ke Keyserver")
+                    Spacer(Modifier.width(4.dp)); Text("Upload to Keyserver")
                 }
                 if (onExportSecret != null) {
+                    var showExportSecConfirm by remember { mutableStateOf(false) }
                     Spacer(Modifier.height(4.dp))
-                    OutlinedButton(onClick = onExportSecret, modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = { showExportSecConfirm = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                         Icon(Icons.Default.Warning, null, modifier = Modifier.size(16.dp),
                             tint = MaterialTheme.colorScheme.error)
                         Spacer(Modifier.width(4.dp))
-                        Text("Export Secret Key", color = MaterialTheme.colorScheme.error)
+                        Text("Copy Sec Key", color = MaterialTheme.colorScheme.error)
+                    }
+                    if (showExportSecConfirm) {
+                        AlertDialog(
+                            onDismissRequest = { showExportSecConfirm = false },
+                            title = { Text("Export Secret Key?") },
+                            text  = {
+                                Text(
+                                    "Your secret key will be copied to the clipboard as plain text. " +
+                                    "Anyone with access to your clipboard can read it. Continue?",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            },
+                            confirmButton = {
+                                TextButton(
+                                    onClick = { showExportSecConfirm = false; onExportSecret() },
+                                    colors = ButtonDefaults.textButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.error
+                                    )
+                                ) { Text("Copy Anyway") }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showExportSecConfirm = false }) { Text("Cancel") }
+                            }
+                        )
                     }
                 }
                 Spacer(Modifier.height(4.dp))
@@ -445,7 +477,7 @@ fun KeyserverUploadDialog(key: GpgKey, onDismiss: () -> Unit, onUpload: (String)
     var keyserver by remember { mutableStateOf("hkps://keyserver.ubuntu.com") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Upload ke Keyserver") },
+        title = { Text("Upload to Keyserver") },
         text  = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Key: ${key.uids.firstOrNull() ?: key.keyId}",
@@ -463,25 +495,10 @@ fun KeyserverUploadDialog(key: GpgKey, onDismiss: () -> Unit, onUpload: (String)
     )
 }
 
-fun isPasswordStrong(p: String): Boolean {
-    if (p.length < 6) return false
-    if (!p.any { it.isLowerCase() }) return false
-    if (!p.any { it.isUpperCase() }) return false
-    if (!p.any { it.isDigit() }) return false
-    if (!p.any { !it.isLetterOrDigit() }) return false
-    return true
-}
+fun isPasswordStrong(p: String): Boolean = p.length >= 8
 
-fun passwordHint(p: String): String {
-    if (p.isEmpty()) return "Minimal 6 karakter: huruf besar, kecil, angka, dan simbol"
-    val missing = mutableListOf<String>()
-    if (!p.any { it.isLowerCase() }) missing.add("huruf kecil")
-    if (!p.any { it.isUpperCase() }) missing.add("huruf besar")
-    if (!p.any { it.isDigit() }) missing.add("angka")
-    if (!p.any { !it.isLetterOrDigit() }) missing.add("simbol")
-    if (p.length < 6) missing.add("minimal 6 karakter")
-    return if (missing.isEmpty()) "" else "Diperlukan: ${missing.joinToString(", ")}"
-}
+fun passwordHint(p: String): String =
+    if (p.isEmpty()) "Required" else if (p.length < 8) "Minimum 8 characters" else ""
 
 @Composable
 fun GenerateKeyDialog(onDismiss: () -> Unit, onGenerate: (KeyGenParams) -> Unit) {
@@ -520,19 +537,19 @@ fun GenerateKeyDialog(onDismiss: () -> Unit, onGenerate: (KeyGenParams) -> Unit)
                             Text(passHint, color = MaterialTheme.colorScheme.error,
                                 style = MaterialTheme.typography.labelSmall)
                         else if (passphrase.isEmpty())
-                            Text("Wajib diisi", color = MaterialTheme.colorScheme.error,
+                            Text("Required", color = MaterialTheme.colorScheme.error,
                                 style = MaterialTheme.typography.labelSmall)
                     }
                 )
                 OutlinedTextField(
                     value = confirm, onValueChange = { confirm = it },
-                    label = { Text("Konfirmasi Passphrase *") }, singleLine = true,
+                    label = { Text("Confirm Passphrase *") }, singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth(),
                     isError = confirm.isNotEmpty() && !passMatch,
                     supportingText = {
                         if (confirm.isNotEmpty() && !passMatch)
-                            Text("Passphrase tidak cocok", color = MaterialTheme.colorScheme.error,
+                            Text("Passphrase does not match", color = MaterialTheme.colorScheme.error,
                                 style = MaterialTheme.typography.labelSmall)
                     }
                 )

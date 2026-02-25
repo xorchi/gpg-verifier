@@ -125,8 +125,24 @@ class GpgExecutor(private val context: Context) {
             else ->
                 // SHA-384, SHA-512, SHA-224, SHA3-* → gunakan JCA (bcprov penuh)
                 org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentVerifierBuilderProvider()
-                    .setProvider(org.bouncycastle.jce.provider.BouncyCastleProvider())
+                    .setProvider(BC_PROVIDER)
         }
+
+    companion object {
+        /** Singleton BouncyCastleProvider — hindari alokasi baru setiap verify call */
+        val BC_PROVIDER by lazy {
+            org.bouncycastle.jce.provider.BouncyCastleProvider().also { provider ->
+                if (java.security.Security.getProvider("BC") == null) {
+                    java.security.Security.addProvider(provider)
+                }
+            }
+        }
+    }
+
+    init {
+        // Pastikan BC provider terdaftar saat GpgExecutor dibuat pertama kali
+        BC_PROVIDER
+    }
 
     // ── Verify (detached signature) ───────────────────────────────────────────
 
