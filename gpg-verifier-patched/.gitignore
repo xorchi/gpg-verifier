@@ -1,0 +1,20 @@
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Keystore
+.jks
+*.keystore
+
+# app/src/main/assets/gpg
+
+# Signing keys - NEVER commit these
+*.p12
+*.pem
