@@ -265,9 +265,10 @@ class GpgExecutor(private val context: Context) {
             // Normalise to \n first so split("\n") is deterministic regardless of
             // whether the file came from GPG/Termux (\n) or a Windows tool (\r\n).
             val normalised = signedText.replace("\r\n", "\n").replace("\r", "\n")
-            val canonicalText = normalised.split("\n")
-                .dropLastWhile { it.trimEnd().isEmpty() }
-                .joinToString("\r\n") { it.trimEnd() } + "\r\n"
+            val lines = normalised.split("\n").map { it.trimEnd() }
+            val lastNonEmpty = lines.indexOfLast { it.isNotEmpty() }
+            val canonicalText = if (lastNonEmpty == -1) "" else
+                lines.subList(0, lastNonEmpty + 1).joinToString("\r\n")
 
             for (sig in sigs) {
                 val pubKey = findPublicKey(pubRings, sig.keyID) ?: continue
