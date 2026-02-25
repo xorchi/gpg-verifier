@@ -123,8 +123,8 @@ fun MainScaffold(filesDir: File) {
                                     snackState.showSnackbar("✗ File log belum ada")
                                 }
                             } catch (e: Exception) {
-                                AppLogger.log("ERROR: Log export failed: ${e.message}")
-                                snackState.showSnackbar("✗ Log export failed: ${e.message}")
+                                AppLogger.log("ERROR: Export log gagal: ${e.message}")
+                                snackState.showSnackbar("✗ Export log gagal: ${e.message}")
                             }
                         }
                     }) {

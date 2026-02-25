@@ -351,7 +351,6 @@ fun KeyCard(
                     }
                 }
                 Spacer(Modifier.height(8.dp))
-                // Baris 1: Trust + Copy Pub (clipboard) + Save Pub (file)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = onTrust, modifier = Modifier.weight(1f)) {
                         Icon(Icons.Default.Shield, null, modifier = Modifier.size(16.dp))
@@ -359,19 +358,17 @@ fun KeyCard(
                     }
                     OutlinedButton(onClick = onExportPublic, modifier = Modifier.weight(1f)) {
                         Icon(Icons.Default.Share, null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp)); Text("Copy Pub")
+                        Spacer(Modifier.width(4.dp)); Text("Export Pub")
                     }
                     OutlinedButton(onClick = onBackupPublic, modifier = Modifier.weight(1f)) {
                         Icon(Icons.Default.Save, null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp)); Text("Save Pub")
+                        Spacer(Modifier.width(4.dp)); Text("Export Pub")
                     }
-                }
-                // Baris 2: Save Priv (hanya untuk secret key)
-                if (onBackupSecret != null) {
-                    Spacer(Modifier.height(4.dp))
-                    OutlinedButton(onClick = onBackupSecret, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Default.Lock, null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp)); Text("Save Private Key to File")
+                    if (onBackupSecret != null) {
+                        OutlinedButton(onClick = onBackupSecret, modifier = Modifier.weight(1f)) {
+                            Icon(Icons.Default.Lock, null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp)); Text("Export Priv")
+                        }
                     }
                 }
                 Spacer(Modifier.height(4.dp))
@@ -381,17 +378,12 @@ fun KeyCard(
                     Spacer(Modifier.width(4.dp)); Text("Upload ke Keyserver")
                 }
                 if (onExportSecret != null) {
-                    OutlinedButton(
-                        onClick = onExportSecret,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = MaterialTheme.colorScheme.error
-                        )
-                    ) {
+                    Spacer(Modifier.height(4.dp))
+                    OutlinedButton(onClick = onExportSecret, modifier = Modifier.fillMaxWidth()) {
                         Icon(Icons.Default.Warning, null, modifier = Modifier.size(16.dp),
                             tint = MaterialTheme.colorScheme.error)
                         Spacer(Modifier.width(4.dp))
-                        Text("Copy Priv (to clipboard)", color = MaterialTheme.colorScheme.error)
+                        Text("Export Secret Key", color = MaterialTheme.colorScheme.error)
                     }
                 }
                 Spacer(Modifier.height(4.dp))
@@ -481,13 +473,13 @@ fun isPasswordStrong(p: String): Boolean {
 }
 
 fun passwordHint(p: String): String {
-    if (p.isEmpty()) return "Minimum 6 characters: uppercase, lowercase, number, and symbol"
+    if (p.isEmpty()) return "Minimal 6 karakter: huruf besar, kecil, angka, dan simbol"
     val missing = mutableListOf<String>()
-    if (!p.any { it.isLowerCase() }) missing.add("lowercase letter")
-    if (!p.any { it.isUpperCase() }) missing.add("uppercase letter")
-    if (!p.any { it.isDigit() }) missing.add("number")
-    if (!p.any { !it.isLetterOrDigit() }) missing.add("symbol")
-    if (p.length < 6) missing.add("minimum 6 characters")
+    if (!p.any { it.isLowerCase() }) missing.add("huruf kecil")
+    if (!p.any { it.isUpperCase() }) missing.add("huruf besar")
+    if (!p.any { it.isDigit() }) missing.add("angka")
+    if (!p.any { !it.isLetterOrDigit() }) missing.add("simbol")
+    if (p.length < 6) missing.add("minimal 6 karakter")
     return if (missing.isEmpty()) "" else "Diperlukan: ${missing.joinToString(", ")}"
 }
 
@@ -540,7 +532,7 @@ fun GenerateKeyDialog(onDismiss: () -> Unit, onGenerate: (KeyGenParams) -> Unit)
                     isError = confirm.isNotEmpty() && !passMatch,
                     supportingText = {
                         if (confirm.isNotEmpty() && !passMatch)
-                            Text("Passphrases do not match", color = MaterialTheme.colorScheme.error,
+                            Text("Passphrase tidak cocok", color = MaterialTheme.colorScheme.error,
                                 style = MaterialTheme.typography.labelSmall)
                     }
                 )
