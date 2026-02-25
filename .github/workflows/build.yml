@@ -1,7 +1,7 @@
 name: Build & Sign APK
 on:
   push:
-    branches: [ master, feat-debugging-logger ]
+    branches: [ master ]
   pull_request:
     branches: [ master ]
   workflow_dispatch:
