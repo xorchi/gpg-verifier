@@ -112,8 +112,11 @@ class KeyringRepository(context: Context) {
     suspend fun exportKey(fingerprint: String, armor: Boolean = true, secret: Boolean = false): GpgOperationResult =
         withContext(Dispatchers.IO) { executor.exportKey(fingerprint, armor, secret) }
 
-    suspend fun backupKey(fingerprint: String): GpgOperationResult =
-        withContext(Dispatchers.IO) { executor.backupKey(fingerprint) }
+    suspend fun backupPublicKey(fingerprint: String): GpgOperationResult =
+        withContext(Dispatchers.IO) { executor.backupPublicKey(fingerprint)
+
+    suspend fun backupSecretKey(fingerprint: String): GpgOperationResult =
+        withContext(Dispatchers.IO) { executor.backupSecretKey(fingerprint) }
 
     suspend fun backupAllPublicKeys(): GpgOperationResult =
         withContext(Dispatchers.IO) { executor.backupAllPublicKeys() }

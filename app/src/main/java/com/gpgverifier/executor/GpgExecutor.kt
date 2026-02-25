@@ -901,26 +901,22 @@ class GpgExecutor(private val context: Context) {
             AppLogger.log("WARN importPublicRings Collection: ${e.message}")
         }
 
-        // Percobaan 2: PGPObjectFactory
+        // Percobaan 2: PGPObjectFactory + re-parse via getEncoded()
+        // Menghindari classloader mismatch — tidak menggunakan 'is' check
         try {
             val factory = PGPObjectFactory(PGPUtil.getDecoderStream(bytes.inputStream()), calc)
             var obj = factory.nextObject()
             while (obj != null) {
-                AppLogger.log("DEBUG: importPublicRings factory obj type: ${obj.javaClass.simpleName}")
-                when (obj) {
-                    is PGPPublicKeyRing -> {
-                        val fp = bytesToHex(obj.publicKey.fingerprint)
+                try {
+                    val encoded = obj.javaClass.getMethod("getEncoded").invoke(obj) as? ByteArray
+                    if (encoded != null) {
+                        val ring = PGPPublicKeyRing(encoded.inputStream(), calc)
+                        val fp = bytesToHex(ring.publicKey.fingerprint)
                         if (!existing.containsKey(fp)) count++
-                        existing[fp] = obj
+                        existing[fp] = ring
+                        AppLogger.log("DEBUG: importPublicRings re-parse OK fp=${fp.takeLast(8)}")
                     }
-                    is PGPPublicKeyRingCollection -> {
-                        for (ring in obj.keyRings) {
-                            val fp = bytesToHex(ring.publicKey.fingerprint)
-                            if (!existing.containsKey(fp)) count++
-                            existing[fp] = ring
-                        }
-                    }
-                }
+                } catch (e: Exception) { /* bukan PGPPublicKeyRing — skip */ }
                 obj = try { factory.nextObject() } catch (e: Exception) { null }
             }
         } catch (e: Exception) {
@@ -989,26 +985,22 @@ class GpgExecutor(private val context: Context) {
             AppLogger.log("WARN importSecretRings Collection: ${e.message}")
         }
 
-        // Percobaan 2: PGPObjectFactory — untuk single ring atau format non-standard
+        // Percobaan 2: PGPObjectFactory + re-parse via getEncoded()
+        // Menghindari classloader mismatch — tidak menggunakan 'is' check
         try {
             val factory = PGPObjectFactory(PGPUtil.getDecoderStream(bytes.inputStream()), calc)
             var obj = factory.nextObject()
             while (obj != null) {
-                AppLogger.log("DEBUG: importSecretRings factory obj type: ${obj.javaClass.simpleName}")
-                when (obj) {
-                    is PGPSecretKeyRing -> {
-                        val fp = bytesToHex(obj.secretKey.publicKey.fingerprint)
+                try {
+                    val encoded = obj.javaClass.getMethod("getEncoded").invoke(obj) as? ByteArray
+                    if (encoded != null) {
+                        val ring = PGPSecretKeyRing(encoded.inputStream(), calc)
+                        val fp = bytesToHex(ring.secretKey.publicKey.fingerprint)
                         if (!existing.containsKey(fp)) count++
-                        existing[fp] = obj
+                        existing[fp] = ring
+                        AppLogger.log("DEBUG: importSecretRings re-parse OK fp=${fp.takeLast(8)}")
                     }
-                    is PGPSecretKeyRingCollection -> {
-                        for (ring in obj.keyRings) {
-                            val fp = bytesToHex(ring.secretKey.publicKey.fingerprint)
-                            if (!existing.containsKey(fp)) count++
-                            existing[fp] = ring
-                        }
-                    }
-                }
+                } catch (e: Exception) { /* bukan PGPSecretKeyRing — skip */ }
                 obj = try { factory.nextObject() } catch (e: Exception) { null }
             }
         } catch (e: Exception) {
@@ -1073,7 +1065,7 @@ class GpgExecutor(private val context: Context) {
 
     // ── Backup ───────────────────────────────────────────────────────────────
 
-    fun backupKey(fingerprint: String): GpgOperationResult {
+    fun backupPublicKey(fingerprint: String): GpgOperationResult {
         return try {
             val fp = fingerprint.uppercase()
             val uid = loadPublicKeyring()
@@ -1081,30 +1073,46 @@ class GpgExecutor(private val context: Context) {
                 ?.publicKey?.userIDs?.asSequence()?.firstOrNull() as? String
                 ?: fp.takeLast(8)
             val safeName = uid.replace(Regex("[^a-zA-Z0-9_\\-@.]"), "_")
-
-            val out = java.io.ByteArrayOutputStream()
-
-            // Tulis public key dalam armor block tersendiri
             val pubRing = loadPublicKeyring()?.firstOrNull { bytesToHex(it.publicKey.fingerprint) == fp }
+                ?: return GpgOperationResult.Failure("Public key tidak ditemukan")
+            val out = java.io.ByteArrayOutputStream()
+            val armor = armoredOut(out)
+            pubRing.encode(armor)
+            armor.close()
+            val file = saveToDownloads("${safeName}_pub.asc")
+            file.writeBytes(out.toByteArray())
+            GpgOperationResult.Success("Public key saved: ${file.name}")
+        } catch (e: Exception) {
+            GpgOperationResult.Failure(e.message ?: "Export failed")
+        }
+    }
+
+    fun backupSecretKey(fingerprint: String): GpgOperationResult {
+        return try {
+            val fp = fingerprint.uppercase()
+            val uid = loadPublicKeyring()
+                ?.firstOrNull { bytesToHex(it.publicKey.fingerprint) == fp }
+                ?.publicKey?.userIDs?.asSequence()?.firstOrNull() as? String
+                ?: fp.takeLast(8)
+            val safeName = uid.replace(Regex("[^a-zA-Z0-9_\\-@.]"), "_")
+            val secRing = loadSecretKeyring()?.firstOrNull { bytesToHex(it.secretKey.publicKey.fingerprint) == fp }
+                ?: return GpgOperationResult.Failure("Secret key tidak ditemukan untuk key ini")
+            val pubRing = loadPublicKeyring()?.firstOrNull { bytesToHex(it.publicKey.fingerprint) == fp }
+            val out = java.io.ByteArrayOutputStream()
+            // Sertakan pubkey terlebih dahulu agar restore menampilkan 1 pub + 1 priv
             if (pubRing != null) {
                 val pubArmor = armoredOut(out)
                 pubRing.encode(pubArmor)
                 pubArmor.close()
             }
-
-            // Tulis secret key dalam armor block tersendiri (terpisah)
-            val secRing = loadSecretKeyring()?.firstOrNull { bytesToHex(it.secretKey.publicKey.fingerprint) == fp }
-            if (secRing != null) {
-                val secArmor = armoredOut(out)
-                secRing.encode(secArmor)
-                secArmor.close()
-            }
-
-            val file = saveToDownloads("$safeName.asc")
+            val secArmor = armoredOut(out)
+            secRing.encode(secArmor)
+            secArmor.close()
+            val file = saveToDownloads("${safeName}_priv.asc")
             file.writeBytes(out.toByteArray())
-            GpgOperationResult.Success("Backup disimpan: ${file.name}")
+            GpgOperationResult.Success("Secret key saved: ${file.name}")
         } catch (e: Exception) {
-            GpgOperationResult.Failure(e.message ?: "Backup gagal")
+            GpgOperationResult.Failure(e.message ?: "Export failed")
         }
     }
 

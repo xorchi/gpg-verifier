@@ -150,15 +150,24 @@ fun KeyringScreen(modifier: Modifier = Modifier) {
                                     uploadTargetKey = key
                                     showKeyserverUploadDialog = true
                                 },
-                                onBackup = {
+                                onBackupPublic = {
                                     scope.launch {
-                                        val r = repo.backupKey(key.fingerprint)
+                                        val r = repo.backupPublicKey(key.fingerprint)
                                         snackMsg = when (r) {
                                             is GpgOperationResult.Success -> "✓ ${r.message}"
                                             is GpgOperationResult.Failure -> "✗ ${r.error}"
                                         }
                                     }
                                 },
+                                onBackupSecret = if (key.type == KeyType.SECRET) ({
+                                    scope.launch {
+                                        val r = repo.backupSecretKey(key.fingerprint)
+                                        snackMsg = when (r) {
+                                            is GpgOperationResult.Success -> "✓ ${r.message}"
+                                            is GpgOperationResult.Failure -> "✗ ${r.error}"
+                                        }
+                                    }
+                                }) else null,
                                 onTrust = { selectedKey = key },
                                 onCopyFingerprint = {
                                     clipboard.setText(AnnotatedString(key.fingerprint))
@@ -278,7 +287,8 @@ fun KeyCard(
     key: GpgKey,
     onDelete: () -> Unit,
     onExportPublic: () -> Unit,
-    onBackup: () -> Unit,
+    onBackupPublic: () -> Unit,
+    onBackupSecret: (() -> Unit)?,
     onExportSecret: (() -> Unit)?,
     onUploadToKeyserver: () -> Unit,
     onTrust: () -> Unit,
@@ -350,9 +360,15 @@ fun KeyCard(
                         Icon(Icons.Default.Share, null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp)); Text("Export Pub")
                     }
-                    OutlinedButton(onClick = onBackup, modifier = Modifier.weight(1f)) {
+                    OutlinedButton(onClick = onBackupPublic, modifier = Modifier.weight(1f)) {
                         Icon(Icons.Default.Save, null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp)); Text("Backup")
+                        Spacer(Modifier.width(4.dp)); Text("Export Pub")
+                    }
+                    if (onBackupSecret != null) {
+                        OutlinedButton(onClick = onBackupSecret, modifier = Modifier.weight(1f)) {
+                            Icon(Icons.Default.Lock, null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp)); Text("Export Priv")
+                        }
                     }
                 }
                 Spacer(Modifier.height(4.dp))
