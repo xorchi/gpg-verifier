@@ -158,7 +158,7 @@ class GpgExecutor(private val context: Context) {
                 val pubKey = findPublicKey(pubRings, sig.keyID) ?: continue
                 // Auto-detected: sig.hashAlgorithm is read directly from the signature packet
                 val algTag  = sig.hashAlgorithm
-                AppLogger.d("verify: hashAlg=${hashAlgorithmName(algTag)} keyID=0x${sig.keyID.toString(16).uppercase()}", AppLogger.TAG_CRYPTO)
+                AppLogger.d("verify: hashAlg=${hashAlgorithmName(algTag)} keyID=0x${sig.keyID.let { java.lang.Long.toUnsignedString(it, 16).uppercase() }}", AppLogger.TAG_CRYPTO)
                 sig.init(resolveVerifierProvider(algTag), pubKey)
                 sig.update(dataFile.readBytes())
                 val valid = sig.verify()
@@ -211,15 +211,24 @@ class GpgExecutor(private val context: Context) {
 
             // Find the first blank line AFTER the PGP header block (Hash: ...)
             // PGP header ends at the first blank line after "-----BEGIN PGP SIGNED MESSAGE-----"
+            // Strategy: scan line-by-line so we are immune to mixed \r\n / \n in the header.
             val msgHeaderEnd = content.indexOf(msgHeader) + msgHeader.length
-            // Look for "\n\n" or "\r\n\r\n" after the header
-            val blankLF   = content.indexOf("\n\n", msgHeaderEnd)
-            val blankCRLF = content.indexOf("\r\n\r\n", msgHeaderEnd)
-            val headerEnd = when {
-                blankCRLF != -1 && (blankLF == -1 || blankCRLF < blankLF) -> blankCRLF + 4
-                blankLF   != -1 -> blankLF + 2
+            val afterHeader  = content.substring(msgHeaderEnd)
+
+            // Find the blank line that separates PGP headers from the signed body.
+            // A blank line is \n\n or \r\n\r\n (or the header ends right at a \n\n).
+            val blankLF   = afterHeader.indexOf("\n\n")
+            val blankCRLF = afterHeader.indexOf("\r\n\r\n")
+
+            // Pick whichever blank-line marker appears first.
+            val (headerBodySep, sepLen) = when {
+                blankCRLF != -1 && (blankLF == -1 || blankCRLF <= blankLF) ->
+                    Pair(msgHeaderEnd + blankCRLF, 4)
+                blankLF != -1 ->
+                    Pair(msgHeaderEnd + blankLF, 2)
                 else -> return VerificationResult(false, "", "", "", "", "Invalid clearsign format — header not found")
             }
+            val headerEnd = headerBodySep + sepLen
 
             // Signed text: between end-of-header blank line and start of signature block
             val signedText = content.substring(headerEnd, sigStart)
@@ -232,15 +241,18 @@ class GpgExecutor(private val context: Context) {
             if (sigs.isEmpty())
                 return VerificationResult(false, "", "", "", "", "No parseable signature found")
 
-            // RFC 4880 §7.1: strip trailing whitespace; every line (incl. last) ends with \r\n
-            val canonicalText = signedText.lines()
+            // RFC 4880 §7.1: strip trailing whitespace; every line (incl. last) ends with \r\n.
+            // Normalise to \n first so split("\n") is deterministic regardless of
+            // whether the file came from GPG/Termux (\n) or a Windows tool (\r\n).
+            val normalised = signedText.replace("\r\n", "\n").replace("\r", "\n")
+            val canonicalText = normalised.split("\n")
                 .joinToString("\r\n") { it.trimEnd() }
                 .trimEnd('\r', '\n') + "\r\n"
 
             for (sig in sigs) {
                 val pubKey = findPublicKey(pubRings, sig.keyID) ?: continue
                 val algTag  = sig.hashAlgorithm
-                AppLogger.d("verifyClearSign: hashAlg=${hashAlgorithmName(algTag)} keyID=0x${sig.keyID.toString(16).uppercase()}", AppLogger.TAG_CRYPTO)
+                AppLogger.d("verifyClearSign: hashAlg=${hashAlgorithmName(algTag)} keyID=0x${sig.keyID.let { java.lang.Long.toUnsignedString(it, 16).uppercase() }}", AppLogger.TAG_CRYPTO)
                 sig.init(resolveVerifierProvider(algTag), pubKey)
                 sig.update(canonicalText.toByteArray(Charsets.UTF_8))
                 val valid = sig.verify()
@@ -342,29 +354,48 @@ class GpgExecutor(private val context: Context) {
                     outFile.outputStream().use { sigGen.generate().encode(it) }
                 }
                 SignMode.CLEARSIGN -> {
-                    // ClearSign must NOT use ArmoredOutputStream for header+body
-                    // Format: plain text header → plain text body → armored signature block
-                    val content = dataFile.readBytes()
-                    val contentStr = content.toString(Charsets.UTF_8)
-                    // Canonical text for signing: strip trailing whitespace per line, CRLF line endings
-                    val canonical = contentStr.lines()
+                    // ClearSign must NOT use ArmoredOutputStream for header+body.
+                    // Format: plain text header → plain text body → armored signature block.
+                    //
+                    // RFC 4880 §7.1 canonicalization rules:
+                    //   1. Strip trailing whitespace from every line.
+                    //   2. Line endings are \r\n for the data fed to the signature engine.
+                    //   3. The body written into the clearsign file uses \n (LF only) —
+                    //      GPG normalises to CRLF internally when it verifies.
+                    //      Writing \r\n into the file body would cause double-CRLF
+                    //      when GPG reads it back, breaking cross-tool verification.
+
+                    val contentStr = dataFile.readBytes().toString(Charsets.UTF_8)
+
+                    // Strip \r so we always work with \n-only lines internally.
+                    val linesLF = contentStr.replace("\r\n", "\n").replace("\r", "\n")
+
+                    // Canonical form fed to the signature engine: trailing whitespace
+                    // stripped per line, joined with \r\n, terminated with \r\n.
+                    val canonical = linesLF.split("\n")
                         .joinToString("\r\n") { it.trimEnd() }
                         .trimEnd('\r', '\n') + "\r\n"
+
                     sigGen.update(canonical.toByteArray(Charsets.UTF_8))
                     val sig = sigGen.generate()
 
-                    // Write signature block to ByteArray via ArmoredOutputStream
+                    // Write signature block to ByteArray via ArmoredOutputStream.
                     val sigBout = ByteArrayOutputStream()
                     armoredOut(sigBout).use { sig.encode(it) }
                     val sigArmored = sigBout.toString(Charsets.UTF_8)
 
-                    // Write the complete clearsign file as plain text
+                    // Body written to file: LF line endings, trailing whitespace stripped,
+                    // no trailing newline on the last line (GPG standard).
+                    val bodyForFile = linesLF.split("\n")
+                        .joinToString("\n") { it.trimEnd() }
+                        .trimEnd('\n')
+
                     outFile.bufferedWriter(Charsets.UTF_8).use { w ->
                         w.write("-----BEGIN PGP SIGNED MESSAGE-----\n")
                         w.write("Hash: ${hashAlgorithm.headerName}\n")
                         w.write("\n")
-                        w.write(contentStr)
-                        if (!contentStr.endsWith("\n")) w.write("\n")
+                        w.write(bodyForFile)
+                        w.write("\n")
                         w.write(sigArmored)
                     }
                 }
@@ -1244,7 +1275,7 @@ class GpgExecutor(private val context: Context) {
             val pubKey = findPublicKey(pubRings, ops.keyID)
                 ?: return VerificationResult(false, "", "", "", "", "Public key not found in keyring")
             val algTag = ops.hashAlgorithm
-            AppLogger.d("verifyEmbedded: hashAlg=${hashAlgorithmName(algTag)} keyID=0x${ops.keyID.toString(16).uppercase()}", AppLogger.TAG_CRYPTO)
+            AppLogger.d("verifyEmbedded: hashAlg=${hashAlgorithmName(algTag)} keyID=0x${ops.keyID.let { java.lang.Long.toUnsignedString(it, 16).uppercase() }}", AppLogger.TAG_CRYPTO)
             ops.init(resolveVerifierProvider(algTag), pubKey)
 
             // Pass 2: read literal data and feed it to the verifier
