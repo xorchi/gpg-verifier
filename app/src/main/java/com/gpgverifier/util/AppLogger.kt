@@ -109,7 +109,9 @@ object AppLogger {
     }
 
     fun readMemoryBuffer(n: Int = MEMORY_BUFFER_CAP): String = synchronized(memBuffer) {
-        memBuffer.takeLast(n).joinToString("\n")
+        val buf = memBuffer.toList()
+        val from = (buf.size - n).coerceAtLeast(0)
+        buf.subList(from, buf.size).joinToString("\n")
     }
 
     fun clearLogs() {
