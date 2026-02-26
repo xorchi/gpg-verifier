@@ -1,15 +1,16 @@
-name: Release & Sign APK
+name: Nightly Build & Sign APK
 
 on:
   push:
     tags:
-      - 'v[0-9]*.[0-9]*.[0-9]*'
+      - 'v*-nightly'
+      - 'v*-dev'
 
 permissions:
   contents: write
 
 jobs:
-  release:
+  nightly:
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -53,10 +54,11 @@ jobs:
           org.gradle.daemon=false
           PROPS
 
-      - name: Set version from tag
+      - name: Set version and app name for nightly
         run: |
           VERSION=${GITHUB_REF_NAME#v}
           sed -i "s/versionName = \".*\"/versionName = \"$VERSION\"/" app/build.gradle.kts
+          sed -i 's|<string name="app_name">.*</string>|<string name="app_name">GPG Verifier (nightly)</string>|' app/src/main/res/values/strings.xml
 
       - name: Build Release APK
         env:
@@ -86,6 +88,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          prerelease: true
           files: |
             GPG-Verifier.apk
             GPG-Verifier.apk.asc
