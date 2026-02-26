@@ -418,9 +418,10 @@ class GpgExecutor(private val context: Context) {
 
                     // Canonical form fed to the signature engine: trailing whitespace
                     // stripped per line, joined with \r\n, terminated with \r\n.
-                    val canonical = linesLF.split("\n")
-                        .dropLastWhile { it.trimEnd().isEmpty() }
-                        .joinToString("\r\n") { it.trimEnd() } + "\r\n"
+                    val lines = linesLF.split("\n").map { it.trimEnd() }
+                    val lastNonEmpty = lines.indexOfLast { it.isNotEmpty() }
+                    val canonical = if (lastNonEmpty == -1) "" else
+                        lines.subList(0, lastNonEmpty + 1).joinToString("\r\n")
 
                     val canonBytes = canonical.toByteArray(Charsets.UTF_8)
                     AppLogger.d("sign(CLEARSIGN): canonicalLen=${canonBytes.size}B bodyLines=${linesLF.split("\n").size}", AppLogger.TAG_CRYPTO)
