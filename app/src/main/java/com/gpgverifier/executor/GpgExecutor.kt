@@ -332,7 +332,7 @@ class GpgExecutor(private val context: Context) {
 
     // ── Sign ─────────────────────────────────────────────────────────────────
 
-    fun sign(dataFile: File, keyFingerprint: String, mode: SignMode, passphrase: CharArray, originalName: String = dataFile.name, hashAlgorithm: com.gpgverifier.model.HashAlgorithm = com.gpgverifier.model.HashAlgorithm.SHA256): SignResult {
+    fun sign(dataFile: File, keyFingerprint: String, mode: SignMode, passphrase: String, originalName: String = dataFile.name, hashAlgorithm: com.gpgverifier.model.HashAlgorithm = com.gpgverifier.model.HashAlgorithm.SHA256): SignResult {
         val tSign = System.currentTimeMillis()
         AppLogger.d("sign() fp=$keyFingerprint mode=$mode hashAlg=${hashAlgorithm.headerName} inputSize=${dataFile.length()}B", AppLogger.TAG_CRYPTO)
         return try {
@@ -347,13 +347,13 @@ class GpgExecutor(private val context: Context) {
             val privateKey = if (isEdDsaOrEcdsaKey) {
                 secKey.extractPrivateKey(
                     org.bouncycastle.openpgp.operator.jcajce.JcePBESecretKeyDecryptorBuilder()
-                        .setProvider(BC_PROVIDER).build(passphrase)
+                        .setProvider(BC_PROVIDER).build(passphrase.toCharArray())
                 )
             } else {
                 secKey.extractPrivateKey(
                     org.bouncycastle.openpgp.operator.bc.BcPBESecretKeyDecryptorBuilder(
                         org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider()
-                    ).build(passphrase)
+                    ).build(passphrase.toCharArray())
                 )
             }
             val ext = when (mode) {
@@ -529,7 +529,7 @@ class GpgExecutor(private val context: Context) {
 
     // ── Encrypt Symmetric ────────────────────────────────────────────────────
 
-    fun encryptSymmetric(dataFile: File, passphrase: CharArray, armor: Boolean, originalName: String = dataFile.name): EncryptResult {
+    fun encryptSymmetric(dataFile: File, passphrase: String, armor: Boolean, originalName: String = dataFile.name): EncryptResult {
         val tEncSym = System.currentTimeMillis()
         AppLogger.d("encryptSymmetric() file=${dataFile.name} size=${dataFile.length()}B armor=$armor", AppLogger.TAG_CRYPTO)
         return try {
@@ -541,7 +541,7 @@ class GpgExecutor(private val context: Context) {
                     .setSecureRandom(SecureRandom())
             ).apply {
                 addMethod(org.bouncycastle.openpgp.operator.bc.BcPBEKeyEncryptionMethodGenerator(
-                    passphrase, HashAlgorithmTags.SHA256))
+                    passphrase.toCharArray(), HashAlgorithmTags.SHA256))
             }
 
             (if (armor) armoredOut(outFile.outputStream()) else outFile.outputStream()).use { rawOut ->
@@ -565,7 +565,7 @@ class GpgExecutor(private val context: Context) {
 
     // ── Decrypt ──────────────────────────────────────────────────────────────
 
-    fun decrypt(dataFile: File, passphrase: CharArray): DecryptResult {
+    fun decrypt(dataFile: File, passphrase: String): DecryptResult {
         val tDecrypt = System.currentTimeMillis()
         AppLogger.d("decrypt() file=${dataFile.name} size=${dataFile.length()}B", AppLogger.TAG_CRYPTO)
         return try {
@@ -596,7 +596,7 @@ class GpgExecutor(private val context: Context) {
                             sec.extractPrivateKey(
                                 org.bouncycastle.openpgp.operator.bc.BcPBESecretKeyDecryptorBuilder(
                                     org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider()
-                                ).build(passphrase)
+                                ).build(passphrase.toCharArray())
                             )
                         } catch (e: Exception) { continue }
                         plainStream = enc.getDataStream(
@@ -614,7 +614,7 @@ class GpgExecutor(private val context: Context) {
                     plainStream = try {
                         enc.getDataStream(
                             org.bouncycastle.openpgp.operator.bc.BcPBEDataDecryptorFactory(
-                                passphrase,
+                                passphrase.toCharArray(),
                                 org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider()
                             )
                         )

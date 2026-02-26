@@ -77,7 +77,7 @@ fun DecryptScreen(modifier: Modifier = Modifier) {
                     val uri = inputUri ?: return@Button
                     scope.launch {
                         isLoading = true; result = null
-                        val res = repo.decrypt(uri, context, passphrase.toCharArray())
+                        val res = repo.decrypt(uri, context, passphrase)
                         isLoading = false
                         result = res
                         if (!res.success) snackMsg = "✗ ${res.errorMessage}"
