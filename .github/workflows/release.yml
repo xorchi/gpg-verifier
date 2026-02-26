@@ -53,6 +53,11 @@ jobs:
           org.gradle.daemon=false
           EOF
 
+      - name: Set version from tag
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          sed -i "s/versionName = \".*\"/versionName = \"$VERSION\"/" app/build.gradle.kts
+
       - name: Build Release APK
         env:
           KEYSTORE_PATH: keystore.jks
