@@ -43,23 +43,23 @@ Built with **Kotlin + Jetpack Compose**. Uses [Bouncy Castle](https://www.bouncy
 
 ```
 ┌─────────────────────────────────────┐
-│           Jetpack Compose UI         │
-│  VerifyScreen  SignEncryptScreen     │
-│  DecryptScreen  KeyringScreen        │
+│           Jetpack Compose UI               │
+│  VerifyScreen  SignEncryptScreen           │
+│  DecryptScreen  KeyringScreen              │
 └──────────────┬──────────────────────┘
-               │
+                  │
 ┌──────────────▼──────────────────────┐
-│         KeyringRepository           │
-│  (coroutine dispatcher, URI → File) │
+│         KeyringRepository                   │
+│  (coroutine dispatcher, URI → File)        │
 └──────────────┬──────────────────────┘
-               │
+                  │
 ┌──────────────▼──────────────────────┐
-│           GpgExecutor               │
-│  Pure Bouncy Castle implementation  │
-│  verify / sign / encrypt / decrypt  │
-│  generateKey / importKey / trustKey │
+│           GpgExecutor                       │
+│  Pure Bouncy Castle implementation          │
+│  verify / sign / encrypt / decrypt          │
+│  generateKey / importKey / trustKey         │
 └──────────────┬──────────────────────┘
-               │
+                  │
 ┌──────────────▼──────────────────────┐
 │    Internal Storage (filesDir)      │
 │  keyring/pubring.pgp                │
