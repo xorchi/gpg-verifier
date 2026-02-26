@@ -360,6 +360,16 @@ Logs are written to `filesDir/logs/app.log` (app-private, no storage permission 
 
 ---
 
+## Support
+
+If you find this project useful, consider supporting its development:
+
+**Bitcoin**
+bc1quhmeps5t8v6d4c9pr5k2jg2tl8flvvmevuwhtr
+**Monero**
+88fw7kpZbjmP2xhHjpsbfHAe3xQzkXKz83cY97qta7kK58J8aNynVA59Apn1dnUCdqdaNKAbmqkgDDtUfFZXAPPEHGyc2Ui
+---
+
 ## License
 
 This project is licensed under the terms of the [LICENSE](LICENSE) file included in this repository.
