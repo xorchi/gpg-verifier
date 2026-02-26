@@ -700,7 +700,6 @@ class GpgExecutor(private val context: Context) {
 
             val passphraseChars = params.passphrase.toCharArray()
             val encryptor = org.bouncycastle.openpgp.operator.bc.BcPBESecretKeyEncryptorBuilder(SymmetricKeyAlgorithmTags.AES_256, org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider().get(HashAlgorithmTags.SHA256)).build(passphraseChars)
-            passphraseChars.fill('\u0000')
 
             val primarySubGen = PGPSignatureSubpacketGenerator().apply {
                 setKeyFlags(false, KeyFlags.CERTIFY_OTHER or KeyFlags.SIGN_DATA)
