@@ -425,14 +425,12 @@ class GpgExecutor(private val context: Context) {
                     // Canonical form fed to the signature engine: trailing whitespace
                     // stripped per line, joined with \r\n, terminated with \r\n.
                     // RFC 4880 §7.1: strip trailing whitespace per line, strip trailing
-                    // blank lines, then join with \r\n and append a final \r\n.
-                    // GnuPG feeds every line including the last with a trailing \r\n to
-                    // the hash engine — omitting it produces a different hash and breaks
-                    // cross-tool verification. Empty body is the only valid exception.
+                    // blank lines, join with \r\n. NO trailing \r\n on last line —
+                    // GnuPG hashes body without terminal line ending.
                     val splitLines = linesLF.split("\n").map { it.trimEnd() }
                     val lastNonEmpty = splitLines.indexOfLast { it.isNotEmpty() }
                     val canonical = if (lastNonEmpty == -1) "" else
-                        splitLines.subList(0, lastNonEmpty + 1).joinToString("\r\n") + "\r\n"
+                        splitLines.subList(0, lastNonEmpty + 1).joinToString("\r\n")
 
                     val canonBytes = canonical.toByteArray(Charsets.UTF_8)
                     AppLogger.d("sign(CLEARSIGN): canonicalLen=${canonBytes.size}B bodyLines=${linesLF.split("\n").size}", AppLogger.TAG_CRYPTO)
