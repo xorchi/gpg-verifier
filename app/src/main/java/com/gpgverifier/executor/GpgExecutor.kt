@@ -275,6 +275,7 @@ class GpgExecutor(private val context: Context) {
                 val pubKey = findPublicKey(pubRings, sig.keyID) ?: continue
                 val algTag  = sig.hashAlgorithm
                 val canonicalBytes = canonicalText.toByteArray(Charsets.UTF_8)
+                AppLogger.d("verifyClearSign: canonicalHex=${canonicalBytes.joinToString("") { "%02x".format(it) }}", AppLogger.TAG_CRYPTO)
                 AppLogger.d("verifyClearSign: hashAlg=${hashAlgorithmName(algTag)} keyID=0x${sig.keyID.let { java.lang.Long.toUnsignedString(it, 16).uppercase() }} canonicalLen=${canonicalBytes.size}B uid=${(pubKey.userIDs.asSequence().firstOrNull() ?: "?")} keyAlg=${pubKey.algorithm}", AppLogger.TAG_CRYPTO)
                 sig.init(resolveVerifierProvider(algTag, pubKey.algorithm), pubKey)
                 sig.update(canonicalBytes)
