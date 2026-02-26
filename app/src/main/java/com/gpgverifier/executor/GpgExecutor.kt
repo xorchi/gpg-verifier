@@ -267,15 +267,13 @@ class GpgExecutor(private val context: Context) {
             val normalised = signedText.replace("\r\n", "\n").replace("\r", "\n")
             val lines = normalised.split("\n").map { it.trimEnd() }
             val lastNonEmpty = lines.indexOfLast { it.isNotEmpty() }
-            // RFC 4880 §7.1: last non-empty line also gets \r\n — must match sign() exactly.
             val canonicalText = if (lastNonEmpty == -1) "" else
-                lines.subList(0, lastNonEmpty + 1).joinToString("\r\n") + "\r\n"
+                lines.subList(0, lastNonEmpty + 1).joinToString("\r\n")
 
             for (sig in sigs) {
                 val pubKey = findPublicKey(pubRings, sig.keyID) ?: continue
                 val algTag  = sig.hashAlgorithm
                 val canonicalBytes = canonicalText.toByteArray(Charsets.UTF_8)
-                AppLogger.d("verifyClearSign: canonicalHex=${canonicalBytes.joinToString("") { "%02x".format(it) }}", AppLogger.TAG_CRYPTO)
                 AppLogger.d("verifyClearSign: hashAlg=${hashAlgorithmName(algTag)} keyID=0x${sig.keyID.let { java.lang.Long.toUnsignedString(it, 16).uppercase() }} canonicalLen=${canonicalBytes.size}B uid=${(pubKey.userIDs.asSequence().firstOrNull() ?: "?")} keyAlg=${pubKey.algorithm}", AppLogger.TAG_CRYPTO)
                 sig.init(resolveVerifierProvider(algTag, pubKey.algorithm), pubKey)
                 sig.update(canonicalBytes)
