@@ -57,6 +57,9 @@ jobs:
         run: |
           VERSION=${GITHUB_REF_NAME#v}
           sed -i "s/versionName = \".*\"/versionName = \"$VERSION\"/" app/build.gradle.kts
+          if [[ "${GITHUB_REF_NAME}" == *"-nightly"* || "${GITHUB_REF_NAME}" == *"-dev"* ]]; then
+            sed -i 's|<string name="app_name">.*</string>|<string name="app_name">GPG Verifier (nightly)</string>|' app/src/main/res/values/strings.xml
+          fi
 
       - name: Build Release APK
         env:
