@@ -41,7 +41,7 @@ class KeyringRepository(context: Context) {
     // ── Sign ─────────────────────────────────────────────────────────────────
     suspend fun sign(
         dataUri: Uri, context: Context,
-        keyFingerprint: String, mode: SignMode, passphrase: String,
+        keyFingerprint: String, mode: SignMode, passphrase: CharArray,
         hashAlgorithm: com.gpgverifier.model.HashAlgorithm = com.gpgverifier.model.HashAlgorithm.SHA256
     ): SignResult = withContext(Dispatchers.IO) {
         val dataFile = uriToTempFile(dataUri, context, "sign_input")
@@ -64,7 +64,7 @@ class KeyringRepository(context: Context) {
     // ── Encrypt (symmetric) ───────────────────────────────────────────────────
     suspend fun encryptSymmetric(
         dataUri: Uri, context: Context,
-        passphrase: String, armor: Boolean
+        passphrase: CharArray, armor: Boolean
     ): EncryptResult = withContext(Dispatchers.IO) {
         val dataFile = uriToTempFile(dataUri, context, "enc_sym_input")
         val originalName = getOriginalFileName(dataUri, context)
@@ -74,7 +74,7 @@ class KeyringRepository(context: Context) {
 
     // ── Decrypt ──────────────────────────────────────────────────────────────
     suspend fun decrypt(
-        dataUri: Uri, context: Context, passphrase: String
+        dataUri: Uri, context: Context, passphrase: CharArray
     ): DecryptResult = withContext(Dispatchers.IO) {
         val dataFile = uriToTempFile(dataUri, context, "dec_input")
         try { executor.decrypt(dataFile, passphrase) }

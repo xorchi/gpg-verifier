@@ -274,8 +274,6 @@ class GpgExecutor(private val context: Context) {
                 val pubKey = findPublicKey(pubRings, sig.keyID) ?: continue
                 val algTag  = sig.hashAlgorithm
                 val canonicalBytes = canonicalText.toByteArray(Charsets.UTF_8)
-                AppLogger.d("verifyClearSign: signedTextHex=${signedText.toByteArray(Charsets.UTF_8).joinToString("") { "%02x".format(it) }}", AppLogger.TAG_CRYPTO)
-                AppLogger.d("verifyClearSign: canonicalHex=${canonicalBytes.joinToString("") { "%02x".format(it) }}", AppLogger.TAG_CRYPTO)
                 AppLogger.d("verifyClearSign: hashAlg=${hashAlgorithmName(algTag)} keyID=0x${sig.keyID.let { java.lang.Long.toUnsignedString(it, 16).uppercase() }} canonicalLen=${canonicalBytes.size}B uid=${(pubKey.userIDs.asSequence().firstOrNull() ?: "?")} keyAlg=${pubKey.algorithm}", AppLogger.TAG_CRYPTO)
                 sig.init(resolveVerifierProvider(algTag, pubKey.algorithm), pubKey)
                 sig.update(canonicalBytes)
@@ -334,7 +332,7 @@ class GpgExecutor(private val context: Context) {
 
     // ── Sign ─────────────────────────────────────────────────────────────────
 
-    fun sign(dataFile: File, keyFingerprint: String, mode: SignMode, passphrase: String, originalName: String = dataFile.name, hashAlgorithm: com.gpgverifier.model.HashAlgorithm = com.gpgverifier.model.HashAlgorithm.SHA256): SignResult {
+    fun sign(dataFile: File, keyFingerprint: String, mode: SignMode, passphrase: CharArray, originalName: String = dataFile.name, hashAlgorithm: com.gpgverifier.model.HashAlgorithm = com.gpgverifier.model.HashAlgorithm.SHA256): SignResult {
         val tSign = System.currentTimeMillis()
         AppLogger.d("sign() fp=$keyFingerprint mode=$mode hashAlg=${hashAlgorithm.headerName} inputSize=${dataFile.length()}B", AppLogger.TAG_CRYPTO)
         return try {
@@ -349,13 +347,13 @@ class GpgExecutor(private val context: Context) {
             val privateKey = if (isEdDsaOrEcdsaKey) {
                 secKey.extractPrivateKey(
                     org.bouncycastle.openpgp.operator.jcajce.JcePBESecretKeyDecryptorBuilder()
-                        .setProvider(BC_PROVIDER).build(passphrase.toCharArray())
+                        .setProvider(BC_PROVIDER).build(passphrase)
                 )
             } else {
                 secKey.extractPrivateKey(
                     org.bouncycastle.openpgp.operator.bc.BcPBESecretKeyDecryptorBuilder(
                         org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider()
-                    ).build(passphrase.toCharArray())
+                    ).build(passphrase)
                 )
             }
             val ext = when (mode) {
@@ -531,7 +529,7 @@ class GpgExecutor(private val context: Context) {
 
     // ── Encrypt Symmetric ────────────────────────────────────────────────────
 
-    fun encryptSymmetric(dataFile: File, passphrase: String, armor: Boolean, originalName: String = dataFile.name): EncryptResult {
+    fun encryptSymmetric(dataFile: File, passphrase: CharArray, armor: Boolean, originalName: String = dataFile.name): EncryptResult {
         val tEncSym = System.currentTimeMillis()
         AppLogger.d("encryptSymmetric() file=${dataFile.name} size=${dataFile.length()}B armor=$armor", AppLogger.TAG_CRYPTO)
         return try {
@@ -543,7 +541,7 @@ class GpgExecutor(private val context: Context) {
                     .setSecureRandom(SecureRandom())
             ).apply {
                 addMethod(org.bouncycastle.openpgp.operator.bc.BcPBEKeyEncryptionMethodGenerator(
-                    passphrase.toCharArray(), HashAlgorithmTags.SHA256))
+                    passphrase, HashAlgorithmTags.SHA256))
             }
 
             (if (armor) armoredOut(outFile.outputStream()) else outFile.outputStream()).use { rawOut ->
@@ -567,7 +565,7 @@ class GpgExecutor(private val context: Context) {
 
     // ── Decrypt ──────────────────────────────────────────────────────────────
 
-    fun decrypt(dataFile: File, passphrase: String): DecryptResult {
+    fun decrypt(dataFile: File, passphrase: CharArray): DecryptResult {
         val tDecrypt = System.currentTimeMillis()
         AppLogger.d("decrypt() file=${dataFile.name} size=${dataFile.length()}B", AppLogger.TAG_CRYPTO)
         return try {
@@ -598,7 +596,7 @@ class GpgExecutor(private val context: Context) {
                             sec.extractPrivateKey(
                                 org.bouncycastle.openpgp.operator.bc.BcPBESecretKeyDecryptorBuilder(
                                     org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider()
-                                ).build(passphrase.toCharArray())
+                                ).build(passphrase)
                             )
                         } catch (e: Exception) { continue }
                         plainStream = enc.getDataStream(
@@ -616,7 +614,7 @@ class GpgExecutor(private val context: Context) {
                     plainStream = try {
                         enc.getDataStream(
                             org.bouncycastle.openpgp.operator.bc.BcPBEDataDecryptorFactory(
-                                passphrase.toCharArray(),
+                                passphrase,
                                 org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider()
                             )
                         )
@@ -700,7 +698,9 @@ class GpgExecutor(private val context: Context) {
                 append(" <${params.email}>")
             }
 
-            val encryptor = org.bouncycastle.openpgp.operator.bc.BcPBESecretKeyEncryptorBuilder(SymmetricKeyAlgorithmTags.AES_256, org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider().get(HashAlgorithmTags.SHA256)).build(params.passphrase.toCharArray())
+            val passphraseChars = params.passphrase.toCharArray()
+            val encryptor = org.bouncycastle.openpgp.operator.bc.BcPBESecretKeyEncryptorBuilder(SymmetricKeyAlgorithmTags.AES_256, org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider().get(HashAlgorithmTags.SHA256)).build(passphraseChars)
+            passphraseChars.fill('\u0000')
 
             val primarySubGen = PGPSignatureSubpacketGenerator().apply {
                 setKeyFlags(false, KeyFlags.CERTIFY_OTHER or KeyFlags.SIGN_DATA)
@@ -1273,9 +1273,9 @@ class GpgExecutor(private val context: Context) {
             val secArmor = armoredOut(out)
             secRing.encode(secArmor)
             secArmor.close()
-            val file = saveToDownloads("${safeName}_priv.asc")
+            val file = File(context.cacheDir, "${safeName}_priv.asc")
             file.writeBytes(out.toByteArray())
-            GpgOperationResult.Success("Secret key saved: ${file.name}")
+            GpgOperationResult.Success(file.absolutePath)
         } catch (e: Exception) {
             GpgOperationResult.Failure(e.message ?: "Export failed")
         }
@@ -1303,9 +1303,9 @@ class GpgExecutor(private val context: Context) {
             val armor = armoredOut(out)
             rings.forEach { it.encode(armor) }
             armor.close()
-            val file = saveToDownloads("all-priv.asc")
+            val file = File(context.cacheDir, "all-priv.asc")
             file.writeBytes(out.toByteArray())
-            GpgOperationResult.Success("${rings.size} secret key(s) saved to ${file.name}")
+            GpgOperationResult.Success(file.absolutePath)
         } catch (e: Exception) {
             GpgOperationResult.Failure(e.message ?: "Backup failed")
         }

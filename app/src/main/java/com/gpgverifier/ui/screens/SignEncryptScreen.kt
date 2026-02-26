@@ -158,7 +158,7 @@ fun SignTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope, s
                     val key = selectedKey ?: return@Button
                     scope.launch {
                         isLoading = true; outputPath = null
-                        val res = repo.sign(uri, context, key.fingerprint, signMode, passphrase, hashAlgorithm)
+                        val res = repo.sign(uri, context, key.fingerprint, signMode, passphrase.toCharArray(), hashAlgorithm)
                         isLoading = false
                         if (res.success) outputPath = res.outputPath
                         else resultMsg = "✗ ${res.errorMessage}"
@@ -329,7 +329,7 @@ fun SymmetricEncryptTab(repo: KeyringRepository, scope: kotlinx.coroutines.Corou
                     if (!passphraseMatch) { resultMsg = "Passphrase does not match"; return@Button }
                     scope.launch {
                         isLoading = true; outputPath = null
-                        val res = repo.encryptSymmetric(uri, context, passphrase, armor)
+                        val res = repo.encryptSymmetric(uri, context, passphrase.toCharArray(), armor)
                         isLoading = false
                         if (res.success) outputPath = res.outputPath
                         else resultMsg = "✗ ${res.errorMessage}"
