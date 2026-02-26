@@ -70,7 +70,6 @@ jobs:
           echo "$GPG_PRIVATE_KEY" | gpg --batch --import
           echo "$GPG_PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback \
             --passphrase-fd 0 --detach-sign --armor GPG-Verifier.apk
-          mv GPG-Verifier.apk.asc GPG-Verifier.apk.asc
 
       - name: Compute checksums
         run: |
