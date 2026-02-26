@@ -386,9 +386,6 @@ class GpgExecutor(private val context: Context) {
             }
             val sigGen = PGPSignatureGenerator(contentSignerBuilder).apply {
                 init(sigType, privateKey)
-                val sub = PGPSignatureSubpacketGenerator()
-                sub.addSignerUserID(false, (secKey.userIDs.asSequence().firstOrNull() ?: "") as String)
-                setHashedSubpackets(sub.generate())
             }
 
             when (mode) {
