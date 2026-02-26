@@ -3,7 +3,7 @@ name: Release & Sign APK
 on:
   push:
     tags:
-      - 'v*'
+      - 'v[0-9]*.[0-9]*.[0-9]*'
 
 permissions:
   contents: write
@@ -46,12 +46,17 @@ jobs:
 
       - name: Generate gradle.properties
         run: |
-          cat > gradle.properties << EOF
+          cat > gradle.properties << PROPS
           android.useAndroidX=true
           android.enableJetifier=true
           org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
           org.gradle.daemon=false
-          EOF
+          PROPS
+
+      - name: Set version from tag
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          sed -i "s/versionName = \".*\"/versionName = \"$VERSION\"/" app/build.gradle.kts
 
       - name: Build Release APK
         env:
@@ -62,8 +67,7 @@ jobs:
         run: ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: Rename APK
-        run: |
-          cp app/build/outputs/apk/release/*.apk GPG-Verifier.apk
+        run: cp app/build/outputs/apk/release/*.apk GPG-Verifier.apk
 
       - name: Import GPG key & sign APK
         env:

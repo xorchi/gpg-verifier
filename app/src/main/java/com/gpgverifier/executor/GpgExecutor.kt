@@ -274,8 +274,6 @@ class GpgExecutor(private val context: Context) {
                 val pubKey = findPublicKey(pubRings, sig.keyID) ?: continue
                 val algTag  = sig.hashAlgorithm
                 val canonicalBytes = canonicalText.toByteArray(Charsets.UTF_8)
-                AppLogger.d("verifyClearSign: signedTextHex=${signedText.toByteArray(Charsets.UTF_8).joinToString("") { "%02x".format(it) }}", AppLogger.TAG_CRYPTO)
-                AppLogger.d("verifyClearSign: canonicalHex=${canonicalBytes.joinToString("") { "%02x".format(it) }}", AppLogger.TAG_CRYPTO)
                 AppLogger.d("verifyClearSign: hashAlg=${hashAlgorithmName(algTag)} keyID=0x${sig.keyID.let { java.lang.Long.toUnsignedString(it, 16).uppercase() }} canonicalLen=${canonicalBytes.size}B uid=${(pubKey.userIDs.asSequence().firstOrNull() ?: "?")} keyAlg=${pubKey.algorithm}", AppLogger.TAG_CRYPTO)
                 sig.init(resolveVerifierProvider(algTag, pubKey.algorithm), pubKey)
                 sig.update(canonicalBytes)
@@ -388,9 +386,6 @@ class GpgExecutor(private val context: Context) {
             }
             val sigGen = PGPSignatureGenerator(contentSignerBuilder).apply {
                 init(sigType, privateKey)
-                val sub = PGPSignatureSubpacketGenerator()
-                sub.addSignerUserID(false, (secKey.userIDs.asSequence().firstOrNull() ?: "") as String)
-                setHashedSubpackets(sub.generate())
             }
 
             when (mode) {
@@ -423,9 +418,10 @@ class GpgExecutor(private val context: Context) {
 
                     // Canonical form fed to the signature engine: trailing whitespace
                     // stripped per line, joined with \r\n, terminated with \r\n.
-                    val canonical = linesLF.split("\n")
-                        .dropLastWhile { it.trimEnd().isEmpty() }
-                        .joinToString("\r\n") { it.trimEnd() } + "\r\n"
+                    val lines = linesLF.split("\n").map { it.trimEnd() }
+                    val lastNonEmpty = lines.indexOfLast { it.isNotEmpty() }
+                    val canonical = if (lastNonEmpty == -1) "" else
+                        lines.subList(0, lastNonEmpty + 1).joinToString("\r\n")
 
                     val canonBytes = canonical.toByteArray(Charsets.UTF_8)
                     AppLogger.d("sign(CLEARSIGN): canonicalLen=${canonBytes.size}B bodyLines=${linesLF.split("\n").size}", AppLogger.TAG_CRYPTO)
@@ -700,7 +696,8 @@ class GpgExecutor(private val context: Context) {
                 append(" <${params.email}>")
             }
 
-            val encryptor = org.bouncycastle.openpgp.operator.bc.BcPBESecretKeyEncryptorBuilder(SymmetricKeyAlgorithmTags.AES_256, org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider().get(HashAlgorithmTags.SHA256)).build(params.passphrase.toCharArray())
+            val passphraseChars = params.passphrase.toCharArray()
+            val encryptor = org.bouncycastle.openpgp.operator.bc.BcPBESecretKeyEncryptorBuilder(SymmetricKeyAlgorithmTags.AES_256, org.bouncycastle.openpgp.operator.bc.BcPGPDigestCalculatorProvider().get(HashAlgorithmTags.SHA256)).build(passphraseChars)
 
             val primarySubGen = PGPSignatureSubpacketGenerator().apply {
                 setKeyFlags(false, KeyFlags.CERTIFY_OTHER or KeyFlags.SIGN_DATA)
@@ -1273,9 +1270,9 @@ class GpgExecutor(private val context: Context) {
             val secArmor = armoredOut(out)
             secRing.encode(secArmor)
             secArmor.close()
-            val file = saveToDownloads("${safeName}_priv.asc")
+            val file = File(context.cacheDir, "${safeName}_priv.asc")
             file.writeBytes(out.toByteArray())
-            GpgOperationResult.Success("Secret key saved: ${file.name}")
+            GpgOperationResult.Success(file.absolutePath)
         } catch (e: Exception) {
             GpgOperationResult.Failure(e.message ?: "Export failed")
         }
@@ -1303,9 +1300,9 @@ class GpgExecutor(private val context: Context) {
             val armor = armoredOut(out)
             rings.forEach { it.encode(armor) }
             armor.close()
-            val file = saveToDownloads("all-priv.asc")
+            val file = File(context.cacheDir, "all-priv.asc")
             file.writeBytes(out.toByteArray())
-            GpgOperationResult.Success("${rings.size} secret key(s) saved to ${file.name}")
+            GpgOperationResult.Success(file.absolutePath)
         } catch (e: Exception) {
             GpgOperationResult.Failure(e.message ?: "Backup failed")
         }
