@@ -61,11 +61,11 @@ Built with **Kotlin + Jetpack Compose**. Uses [Bouncy Castle](https://www.bouncy
 └──────────────┬──────────────────────┘
                   │
 ┌──────────────▼──────────────────────┐
-│    Internal Storage (filesDir)      │
-│  keyring/pubring.pgp                │
-│  keyring/secring.pgp                │
-│  keyring/trustdb.txt                │
-│  logs/app.log                       │
+│    Internal Storage (filesDir)              │
+│  keyring/pubring.pgp                        │
+│  keyring/secring.pgp                        │
+│  keyring/trustdb.txt                        │
+│  logs/app.log                               │
 └─────────────────────────────────────┘
 ```
 
