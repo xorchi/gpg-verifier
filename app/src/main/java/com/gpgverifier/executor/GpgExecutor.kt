@@ -386,6 +386,12 @@ class GpgExecutor(private val context: Context) {
             }
             val sigGen = PGPSignatureGenerator(contentSignerBuilder).apply {
                 init(sigType, privateKey)
+                // Embed signer's User ID in the hashed subpackets so verifiers
+                // (including GnuPG --verify -v) can display identity without a
+                // full key lookup. RFC 4880 §5.2.3.22 — optional but recommended.
+                val sub = PGPSignatureSubpacketGenerator()
+                sub.addSignerUserID(false, (secKey.userIDs.asSequence().firstOrNull() ?: "") as String)
+                setHashedSubpackets(sub.generate())
             }
 
             when (mode) {
@@ -418,10 +424,13 @@ class GpgExecutor(private val context: Context) {
 
                     // Canonical form fed to the signature engine: trailing whitespace
                     // stripped per line, joined with \r\n, terminated with \r\n.
-                    val lines = linesLF.split("\n").map { it.trimEnd() }
-                    val lastNonEmpty = lines.indexOfLast { it.isNotEmpty() }
+                    // RFC 4880 §7.1: strip trailing whitespace per line, strip trailing
+                    // blank lines, join with \r\n. NO trailing \r\n on last line —
+                    // GnuPG hashes body without terminal line ending.
+                    val splitLines = linesLF.split("\n").map { it.trimEnd() }
+                    val lastNonEmpty = splitLines.indexOfLast { it.isNotEmpty() }
                     val canonical = if (lastNonEmpty == -1) "" else
-                        lines.subList(0, lastNonEmpty + 1).joinToString("\r\n")
+                        splitLines.subList(0, lastNonEmpty + 1).joinToString("\r\n")
 
                     val canonBytes = canonical.toByteArray(Charsets.UTF_8)
                     AppLogger.d("sign(CLEARSIGN): canonicalLen=${canonBytes.size}B bodyLines=${linesLF.split("\n").size}", AppLogger.TAG_CRYPTO)
@@ -1300,6 +1309,8 @@ class GpgExecutor(private val context: Context) {
             val armor = armoredOut(out)
             rings.forEach { it.encode(armor) }
             armor.close()
+            // Secret keys go to private cacheDir (never exposed to other apps).
+            // UI layer must use a share/save intent to let the user choose destination.
             val file = File(context.cacheDir, "all-priv.asc")
             file.writeBytes(out.toByteArray())
             GpgOperationResult.Success(file.absolutePath)
