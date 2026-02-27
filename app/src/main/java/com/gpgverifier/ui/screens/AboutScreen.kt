@@ -11,6 +11,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import java.net.URL
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -89,26 +93,66 @@ fun AboutScreen(modifier: Modifier = Modifier) {
 
         // Changelog
         SectionHeader("Changelog")
+        val releases = remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
+        val changelogLoading = remember { mutableStateOf(true) }
+        val changelogError = remember { mutableStateOf<String?>(null) }
+
+        LaunchedEffect(Unit) {
+            withContext(Dispatchers.IO) {
+                try {
+                    val url = URL("https://api.github.com/repos/xorchi/gpg-verifier/releases")
+                    val conn = url.openConnection().apply {
+                        setRequestProperty("Accept", "application/vnd.github+json")
+                        connectTimeout = 5000
+                        readTimeout = 5000
+                    }
+                    val json = conn.getInputStream().bufferedReader().readText()
+                    val arr = JSONArray(json)
+                    val result = mutableListOf<Pair<String, String>>()
+                    for (i in 0 until arr.length()) {
+                        val obj = arr.getJSONObject(i)
+                        val tag = obj.getString("tag_name")
+                        val body = obj.optString("body", "No release notes")
+                        result.add(tag to body)
+                    }
+                    releases.value = result
+                } catch (e: Exception) {
+                    changelogError.value = "Failed to load changelog"
+                } finally {
+                    changelogLoading.value = false
+                }
+            }
+        }
+
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                ChangelogEntry("v1.0.2", "Current", listOf(
-                    "Fix ClearSign canonical hash — GnuPG cross-tool compatibility",
-                    "Fix secret key backup now saves to Downloads",
-                    "Restore signerUserID subpacket in signature metadata",
-                    "Restructure CI/CD workflows: dev artifact, master release"
-                ))
-                HorizontalDivider()
-                ChangelogEntry("v1.0.1", null, listOf(
-                    "Initial key import/export improvements",
-                    "Detached signature support"
-                ))
-                HorizontalDivider()
-                ChangelogEntry("v1.0.0", null, listOf(
-                    "Initial release",
-                    "ClearSign, detach, embedded sign & verify",
-                    "Asymmetric and symmetric encrypt/decrypt",
-                    "Key management"
-                ))
+                when {
+                    changelogLoading.value -> {
+                        CircularProgressIndicator(
+                            modifier = Modifier.align(Alignment.CenterHorizontally).size(24.dp),
+                            strokeWidth = 2.dp
+                        )
+                    }
+                    changelogError.value != null -> {
+                        Text(changelogError.value!!, style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error)
+                    }
+                    releases.value.isEmpty() -> {
+                        Text("No releases found", style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                    }
+                    else -> {
+                        releases.value.forEachIndexed { index, (tag, body) ->
+                            if (index > 0) HorizontalDivider()
+                            val badge = if (index == 0) "Current" else null
+                            val items = body.lines()
+                                .map { it.trimStart('-', ' ').trim() }
+                                .filter { it.isNotBlank() }
+                                .take(8)
+                            ChangelogEntry(tag, badge, items)
+                        }
+                    }
+                }
             }
         }
 

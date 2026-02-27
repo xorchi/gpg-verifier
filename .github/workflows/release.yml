@@ -57,6 +57,8 @@ jobs:
         run: |
           VERSION=${GITHUB_REF_NAME#v}
           sed -i "s/versionName = \".*\"/versionName = \"$VERSION\"/" app/build.gradle.kts
+          VERSION_CODE=$(git tag | grep -c 'v[0-9]')
+          sed -i "s/versionCode = [0-9]*/versionCode = $VERSION_CODE/" app/build.gradle.kts
 
       - name: Build Release APK
         env:
@@ -91,7 +93,7 @@ jobs:
             GPG-Verifier.apk.asc
             GPG-Verifier.apk.sha256
             GPG-Verifier.apk.sha512
-          generate_release_notes: false
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
