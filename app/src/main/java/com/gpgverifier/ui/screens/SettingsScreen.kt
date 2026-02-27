@@ -37,11 +37,9 @@ fun SettingsScreen(filesDir: File, modifier: Modifier = Modifier) {
     var hashMenuExpanded by remember { mutableStateOf(false) }
     var keyserverEditing by remember { mutableStateOf(false) }
     var keyserverDraft   by remember { mutableStateOf(keyserver) }
-    var logSize          by remember { mutableStateOf(0L) }
 
     LaunchedEffect(Unit) {
         val logFile = File(filesDir, "logs/app.log")
-        logSize = if (logFile.exists()) logFile.length() else 0L
     }
 
     Scaffold(snackbarHost = { SnackbarHost(snack) }) { innerPad ->
@@ -173,80 +171,6 @@ fun SettingsScreen(filesDir: File, modifier: Modifier = Modifier) {
                                 modifier = Modifier.weight(1f))
                             IconButton(onClick = { keyserverEditing = true }) {
                                 Icon(Icons.Default.Edit, null, modifier = Modifier.size(18.dp))
-                            }
-                        }
-                    }
-                }
-            }
-
-            // ── Log Management ──────────────────────────────────────────────
-            SectionHeader("Log Management")
-
-            SettingsCard {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(stringResource(R.string.settings_app_log), style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium)
-                            Text(stringResource(R.string.log_size_kb, (logSize / 1024).toInt()), style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-                            Text("app.log + rotated logs",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
-                        }
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            OutlinedButton(
-                                onClick = {
-                                    scope.launch {
-                                        try {
-                                            val dest = AppLogger.exportAllLogs(
-                                                android.os.Environment.getExternalStoragePublicDirectory(
-                                                    android.os.Environment.DIRECTORY_DOWNLOADS))
-                                            val src = File(filesDir, "logs/app.log")
-                                            logSize = if (src.exists()) src.length() else 0L
-                                            AppLogger.i("Full log exported: ${dest.name} (${dest.length()}B)", AppLogger.TAG_UI)
-                                            snack.showSnackbar("✓ Exported to Downloads/${dest.name}")
-                                        } catch (e: Exception) {
-                                            AppLogger.ex("exportLog", e, AppLogger.TAG_UI)
-                                            snack.showSnackbar("✗ ${e.message}")
-                                        }
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(Icons.Default.FileDownload, null, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text(stringResource(R.string.nav_export_log))
-                            }
-                            OutlinedButton(
-                                onClick = {
-                                    scope.launch {
-                                        try {
-                                            AppLogger.clearLogs()
-                                            logSize = 0L
-                                            snack.showSnackbar("✓ Log cleared")
-                                        } catch (e: kotlinx.coroutines.CancellationException) {
-                                            // Scope cancelled — normal when navigating away
-                                        } catch (e: Exception) {
-                                            AppLogger.ex("clearLogs", e, AppLogger.TAG_UI)
-                                        }
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                                border = ButtonDefaults.outlinedButtonBorder.copy(
-                                    brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.error))
-                            ) {
-                                Icon(Icons.Default.DeleteOutline, null, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text(stringResource(R.string.action_clear))
                             }
                         }
                     }

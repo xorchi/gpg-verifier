@@ -1375,10 +1375,14 @@ class GpgExecutor(private val context: Context) {
             val factory3 = nextFrom(innerBytes)
             factory3.nextObject() // skip OnePassSignatureList
             factory3.nextObject() // skip LiteralData
-            val sigList = factory3.nextObject() as? PGPSignatureList
+            val p3obj = factory3.nextObject()
+            AppLogger.d("verifyEmbedded: pass3 obj=${p3obj?.javaClass?.simpleName}", AppLogger.TAG_CRYPTO)
+            val sigList = p3obj as? PGPSignatureList
                 ?: return VerificationResult(false, "", "", "", "", "Signature list not found")
             val sig = sigList[0]
+            AppLogger.d("verifyEmbedded: calling ops.verify()", AppLogger.TAG_CRYPTO)
             val valid = ops.verify(sig)
+            AppLogger.d("verifyEmbedded: verify result=$valid", AppLogger.TAG_CRYPTO)
             val fp  = bytesToHex(pubKey.fingerprint)
             val uid = (pubKey.userIDs.asSequence().firstOrNull() ?: "Unknown") as String
             val ts  = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(sig.creationTime)

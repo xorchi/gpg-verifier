@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gpgverifier.R
 import com.gpgverifier.util.AppLogger
+import java.io.File
 import kotlinx.coroutines.launch
 
 private data class LogLine(
@@ -128,6 +129,47 @@ fun LogViewerScreen(modifier: Modifier = Modifier) {
                     modifier = Modifier.size(36.dp)
                 ) {
                     Icon(Icons.Default.ContentCopy, "Copy", modifier = Modifier.size(18.dp))
+                }
+
+                // Export log
+                IconButton(
+                    onClick = {
+                        corScope.launch {
+                            try {
+                                val dest = AppLogger.exportAllLogs(
+                                    android.os.Environment.getExternalStoragePublicDirectory(
+                                        android.os.Environment.DIRECTORY_DOWNLOADS))
+                                snack.showSnackbar("✓ Exported to Downloads/${dest.name}")
+                            } catch (e: Exception) {
+                                snack.showSnackbar("✗ ${e.message}")
+                            }
+                        }
+                    },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(Icons.Default.FileDownload, "Export", modifier = Modifier.size(18.dp))
+                }
+
+                // Clear log
+                IconButton(
+                    onClick = {
+                        corScope.launch {
+                            try {
+                                AppLogger.clearLogs()
+                                reload()
+                                snack.showSnackbar("✓ Log cleared")
+                            } catch (e: kotlinx.coroutines.CancellationException) {
+                                // ignore
+                            } catch (e: Exception) {
+                                snack.showSnackbar("✗ ${e.message}")
+                            }
+                        }
+                    },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(Icons.Default.DeleteOutline, "Clear",
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.error)
                 }
 
                 // Auto scroll toggle
