@@ -132,13 +132,20 @@ object AppLogger {
 
     fun readLogs(): String {
         val sb = StringBuilder()
-        // Baca rotated logs dari terlama ke terbaru
-        for (i in 5 downTo 1) {
-            val f = File(logFile.parent, "app.log.$i")
-            if (f.exists()) sb.appendLine(f.readText())
+        synchronized(fileLock) {
+            // Baca rotated logs dari terlama ke terbaru
+            val parent = logFile?.parentFile
+            if (parent != null) {
+                for (i in 5 downTo 1) {
+                    val f = File(parent, "app.log.$i")
+                    if (f.exists()) sb.append(f.readText())
+                }
+            }
+            // Baca log aktif
+            if (logFile?.exists() == true) sb.append(logFile!!.readText())
         }
         // Tambah buffer memori (log terkini yang belum ditulis ke file)
-        synchronized(buffer) { buffer.forEach { sb.appendLine(it) } }
+        synchronized(memBuffer) { memBuffer.forEach { sb.appendLine(it) } }
         return sb.toString()
     }
 
