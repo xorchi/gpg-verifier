@@ -108,9 +108,6 @@ object AppLogger {
 
     // ── Read / clear ──────────────────────────────────────────────────────────
 
-    fun readLogs(): String = synchronized(fileLock) {
-        logFile?.takeIf { it.exists() }?.readText() ?: "(log is empty)"
-    }
 
     fun exportAllLogs(destDir: File): File {
         val dest = File(destDir, "gpgverifier-full.log")
@@ -131,6 +128,18 @@ object AppLogger {
         val buf = memBuffer.toList()
         val from = (buf.size - n).coerceAtLeast(0)
         buf.subList(from, buf.size).joinToString("\n")
+    }
+
+    fun readLogs(): String {
+        val sb = StringBuilder()
+        // Baca rotated logs dari terlama ke terbaru
+        for (i in 5 downTo 1) {
+            val f = File(logFile.parent, "app.log.$i")
+            if (f.exists()) sb.appendLine(f.readText())
+        }
+        // Tambah buffer memori (log terkini yang belum ditulis ke file)
+        synchronized(buffer) { buffer.forEach { sb.appendLine(it) } }
+        return sb.toString()
     }
 
     fun clearLogs() {

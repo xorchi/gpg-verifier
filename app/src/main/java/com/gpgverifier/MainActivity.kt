@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Settings
@@ -56,6 +57,7 @@ import com.gpgverifier.ui.screens.DecryptScreen
 import com.gpgverifier.ui.screens.KeyringScreen
 import com.gpgverifier.ui.screens.SettingsScreen
 import com.gpgverifier.ui.screens.SignEncryptScreen
+import com.gpgverifier.ui.screens.LogViewerScreen
 import com.gpgverifier.ui.screens.TextViewerScreen
 import com.gpgverifier.ui.screens.VerifyScreen
 import com.gpgverifier.prefs.AppPreferences
@@ -137,7 +139,7 @@ fun MainScaffold(filesDir: File, onThemeChange: (String) -> Unit, onAccentChange
     val snackState     = remember { SnackbarHostState() }
     val scope          = rememberCoroutineScope()
     var menuExpanded by remember { mutableStateOf(false) }
-    var overlay      by remember { mutableStateOf("") } // "settings" | "appearance" | "about" | ""
+    var overlay      by remember { mutableStateOf("") } // "settings" | "appearance" | "about" | "logs" | ""
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -157,6 +159,11 @@ fun MainScaffold(filesDir: File, onThemeChange: (String) -> Unit, onAccentChange
                                 text = { Text(stringResource(R.string.nav_settings)) },
                                 leadingIcon = { Icon(Icons.Default.Settings, null) },
                                 onClick = { overlay = "settings"; menuExpanded = false; AppLogger.d("nav: overlay=Settings", AppLogger.TAG_UI) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Log Viewer") },
+                                leadingIcon = { Icon(Icons.Default.BugReport, null) },
+                                onClick = { overlay = "logs"; menuExpanded = false; AppLogger.d("nav: overlay=Logs", AppLogger.TAG_UI) }
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.nav_appearance)) },
@@ -200,6 +207,7 @@ fun MainScaffold(filesDir: File, onThemeChange: (String) -> Unit, onAccentChange
                                 onAccentChange = onAccentChange,
                                 modifier       = Modifier.padding(innerPadding))
             overlay == "about"      -> AboutScreen(modifier = Modifier.padding(innerPadding))
+            overlay == "logs"       -> LogViewerScreen(modifier = Modifier.padding(innerPadding))
             else           -> when (selectedTab) {
                 0 -> VerifyScreen(modifier     = Modifier.padding(innerPadding))
                 1 -> SignEncryptScreen(modifier = Modifier.padding(innerPadding))

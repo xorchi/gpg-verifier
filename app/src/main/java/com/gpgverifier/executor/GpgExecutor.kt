@@ -44,8 +44,8 @@ class GpgExecutor(private val context: Context) {
      */
     // Save directly to Downloads; fall back to cacheDir on failure
     private fun saveToDownloads(name: String): File {
-        // Avoid double extension: strip trailing .asc/.gpg/.sig if already present
-        val cleanName = if (name.endsWith(".asc.asc") || name.endsWith(".gpg.asc") ||
+        // Avoid double extension: strip only true duplicates, NOT compound extensions like .gpg.asc
+        val cleanName = if (name.endsWith(".asc.asc") ||
                             name.endsWith(".sig.asc") || name.endsWith(".asc.gpg") ||
                             name.endsWith(".gpg.gpg") || name.endsWith(".asc.sig")) {
             name.substringBeforeLast('.')
