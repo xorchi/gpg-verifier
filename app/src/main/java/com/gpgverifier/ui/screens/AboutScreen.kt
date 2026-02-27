@@ -54,7 +54,7 @@ fun AboutScreen(modifier: Modifier = Modifier) {
                     color = MaterialTheme.colorScheme.primary)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     AssistChip(onClick = {}, label = { Text(buildType, fontSize = 12.sp) })
-                    AssistChip(onClick = {}, label = { Text(stringResource(R.string.build_version, versionCode.toInt(), fontSize = 12.sp) })
+                    AssistChip(onClick = {}, label = { Text(stringResource(R.string.build_version, versionCode.toInt()), fontSize = 12.sp) })
                     AssistChip(onClick = {}, label = { Text(stringResource(R.string.api_level, android.os.Build.VERSION.SDK_INT), fontSize = 12.sp) })
                 }
             }
