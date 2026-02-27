@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import com.gpgverifier.keyring.KeyringRepository
 import com.gpgverifier.model.GpgKey
 import com.gpgverifier.model.HashAlgorithm
+import com.gpgverifier.prefs.AppPreferences
 import com.gpgverifier.model.SignMode
 import com.gpgverifier.util.FileShareHelper
 import kotlinx.coroutines.launch
@@ -61,7 +62,15 @@ fun SignTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope, s
     var secretKeys by remember { mutableStateOf<List<GpgKey>>(emptyList()) }
     var selectedKey by remember { mutableStateOf<GpgKey?>(null) }
     var signMode   by remember { mutableStateOf(SignMode.DETACH_ARMOR) }
-    var hashAlgorithm by remember { mutableStateOf(HashAlgorithm.SHA256) }
+    val defaultHash = AppPreferences.get(context, AppPreferences.KEY_HASH_ALGO, AppPreferences.DEFAULT_HASH_ALGO)
+    var hashAlgorithm by remember { mutableStateOf(
+        when (defaultHash) {
+            "SHA256" -> HashAlgorithm.SHA256
+            "SHA384" -> HashAlgorithm.SHA384
+            "SHA512" -> HashAlgorithm.SHA512
+            else     -> HashAlgorithm.SHA512
+        }
+    ) }
     var passphrase by remember { mutableStateOf("") }
     var isLoading  by remember { mutableStateOf(false) }
     var resultMsg  by remember { mutableStateOf<String?>(null) }
@@ -131,7 +140,7 @@ fun SignTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope, s
 
             Text(stringResource(R.string.field_hash_algorithm), style = MaterialTheme.typography.labelMedium)
             var hashExpanded by remember { mutableStateOf(false) }
-            val hashOptions = listOf(HashAlgorithm.SHA256 to "SHA-256 (default)", HashAlgorithm.SHA512 to "SHA-512")
+            val hashOptions = listOf(HashAlgorithm.SHA256 to "SHA-256", HashAlgorithm.SHA384 to "SHA-384", HashAlgorithm.SHA512 to "SHA-512")
             ExposedDropdownMenuBox(expanded = hashExpanded, onExpandedChange = { hashExpanded = it }) {
                 OutlinedTextField(
                     value = hashOptions.first { it.first == hashAlgorithm }.second,

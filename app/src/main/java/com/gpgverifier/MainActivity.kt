@@ -124,10 +124,8 @@ fun MainScaffold(filesDir: File) {
     var selectedTab    by remember { mutableIntStateOf(0) }
     val snackState     = remember { SnackbarHostState() }
     val scope          = rememberCoroutineScope()
-    var menuExpanded   by remember { mutableStateOf(false) }
-    var showSettings   by remember { mutableStateOf(false) }
-    var showAppearance by remember { mutableStateOf(false) }
-    var showAbout      by remember { mutableStateOf(false) }
+    var menuExpanded by remember { mutableStateOf(false) }
+    var overlay      by remember { mutableStateOf("") } // "settings" | "appearance" | "about" | ""
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -146,17 +144,17 @@ fun MainScaffold(filesDir: File) {
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.nav_settings)) },
                                 leadingIcon = { Icon(Icons.Default.Settings, null) },
-                                onClick = { menuExpanded = false; showSettings = true; AppLogger.d("nav: overlay=Settings", AppLogger.TAG_UI) }
+                                onClick = { overlay = "settings"; menuExpanded = false; AppLogger.d("nav: overlay=Settings", AppLogger.TAG_UI) }
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.nav_appearance)) },
                                 leadingIcon = { Icon(Icons.Default.Palette, null) },
-                                onClick = { menuExpanded = false; showAppearance = true; AppLogger.d("nav: overlay=Appearance", AppLogger.TAG_UI) }
+                                onClick = { overlay = "appearance"; menuExpanded = false; AppLogger.d("nav: overlay=Appearance", AppLogger.TAG_UI) }
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.nav_about)) },
                                 leadingIcon = { Icon(Icons.Default.Info, null) },
-                                onClick = { menuExpanded = false; showAbout = true; AppLogger.d("nav: overlay=About", AppLogger.TAG_UI) }
+                                onClick = { overlay = "about"; menuExpanded = false; AppLogger.d("nav: overlay=About", AppLogger.TAG_UI) }
                             )
 
                         }
@@ -172,9 +170,7 @@ fun MainScaffold(filesDir: File) {
                         onClick   = {
                             AppLogger.d("nav: tab=${item.label}", AppLogger.TAG_UI)
                             selectedTab = index
-                            showSettings   = false
-                            showAppearance = false
-                            showAbout      = false
+                            overlay        = ""
                         },
                         icon      = { Icon(if (selectedTab == index) item.selectedIcon else item.unselectedIcon,
                                          contentDescription = item.label) },
@@ -185,13 +181,13 @@ fun MainScaffold(filesDir: File) {
         }
     ) { innerPadding ->
         when {
-            showSettings   -> SettingsScreen(filesDir = filesDir,
+            overlay == "settings"   -> SettingsScreen(filesDir = filesDir,
                                 modifier = Modifier.padding(innerPadding))
-            showAppearance -> AppearanceScreen(
+            overlay == "appearance" -> AppearanceScreen(
                                 onThemeChange  = { /* TODO: apply theme */ },
                                 onAccentChange = { /* TODO: apply accent */ },
                                 modifier       = Modifier.padding(innerPadding))
-            showAbout      -> AboutScreen(modifier = Modifier.padding(innerPadding))
+            overlay == "about"      -> AboutScreen(modifier = Modifier.padding(innerPadding))
             else           -> when (selectedTab) {
                 0 -> VerifyScreen(modifier     = Modifier.padding(innerPadding))
                 1 -> SignEncryptScreen(modifier = Modifier.padding(innerPadding))

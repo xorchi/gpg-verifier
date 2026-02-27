@@ -65,7 +65,7 @@ fun SettingsScreen(filesDir: File, modifier: Modifier = Modifier) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(stringResource(R.string.settings_default_hash), style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Medium)
                         Text(stringResource(R.string.settings_hash_desc), style = MaterialTheme.typography.labelSmall,

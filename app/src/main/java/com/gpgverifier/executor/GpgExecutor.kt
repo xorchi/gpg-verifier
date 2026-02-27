@@ -465,8 +465,8 @@ class GpgExecutor(private val context: Context) {
                         PGPLiteralDataGenerator().open(cos, PGPLiteralData.BINARY,
                             originalName, content.size.toLong(), Date()).use { los ->
                             los.write(content)
+                            sigGen.update(content)
                         }
-                        sigGen.update(content)
                         sigGen.generate().encode(cos)
                     }
                     armoredOut(outFile.outputStream()).use { it.write(bout.toByteArray()) }
@@ -479,8 +479,8 @@ class GpgExecutor(private val context: Context) {
                         PGPLiteralDataGenerator().open(cos, PGPLiteralData.BINARY,
                             originalName, content.size.toLong(), Date()).use { los ->
                             los.write(content)
+                            sigGen.update(content)
                         }
-                        sigGen.update(content)
                         sigGen.generate().encode(cos)
                     }
                     outFile.outputStream().use { it.write(bout.toByteArray()) }
