@@ -43,6 +43,7 @@ import androidx.compose.material.icons.outlined.LockOpen
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -132,7 +133,7 @@ fun MainScaffold(filesDir: File) {
         snackbarHost = { SnackbarHost(snackState) },
         topBar = {
             TopAppBar(
-                title = { Text("GPG Verifier") },
+                title = { Text(stringResource(R.string.app_name)) },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface),
                 actions = {
@@ -142,23 +143,23 @@ fun MainScaffold(filesDir: File) {
                         }
                         DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
                             DropdownMenuItem(
-                                text = { Text("Settings") },
+                                text = { Text(stringResource(R.string.nav_settings)) },
                                 leadingIcon = { Icon(Icons.Default.Settings, null) },
                                 onClick = { menuExpanded = false; showSettings = true; AppLogger.d("nav: overlay=Settings", AppLogger.TAG_UI) }
                             )
                             DropdownMenuItem(
-                                text = { Text("Appearance") },
+                                text = { Text(stringResource(R.string.nav_appearance)) },
                                 leadingIcon = { Icon(Icons.Default.Palette, null) },
                                 onClick = { menuExpanded = false; showAppearance = true; AppLogger.d("nav: overlay=Appearance", AppLogger.TAG_UI) }
                             )
                             DropdownMenuItem(
-                                text = { Text("About") },
+                                text = { Text(stringResource(R.string.nav_about)) },
                                 leadingIcon = { Icon(Icons.Default.Info, null) },
                                 onClick = { menuExpanded = false; showAbout = true; AppLogger.d("nav: overlay=About", AppLogger.TAG_UI) }
                             )
                             HorizontalDivider()
                             DropdownMenuItem(
-                                text = { Text("Export Log") },
+                                text = { Text(stringResource(R.string.nav_export_log)) },
                                 leadingIcon = { Icon(Icons.Default.BugReport, null) },
                                 onClick = {
                                     menuExpanded = false

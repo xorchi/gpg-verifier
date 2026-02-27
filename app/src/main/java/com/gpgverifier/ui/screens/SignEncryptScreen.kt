@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -83,18 +84,18 @@ fun SignTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope, s
             modifier = Modifier.padding(padding).padding(16.dp).verticalScroll(scroll),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text("Sign File", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.sign_title), style = MaterialTheme.typography.titleMedium)
 
             FilePickerCard("Input File", inputUri, Icons.Default.InsertDriveFile) { filePicker.launch("*/*") }
 
             if (secretKeys.isEmpty()) {
                 Card(modifier = Modifier.fillMaxWidth()) {
-                    Text("No secret keys found. Generate or import a key first.",
+                    Text(stringResource(R.string.keys_no_sec_keys),
                         modifier = Modifier.padding(16.dp),
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                 }
             } else {
-                Text("Signing Key", style = MaterialTheme.typography.labelMedium)
+                Text(stringResource(R.string.sign_signing_key), style = MaterialTheme.typography.labelMedium)
                 secretKeys.forEach { key ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         RadioButton(selected = selectedKey == key, onClick = { selectedKey = key })
@@ -108,14 +109,14 @@ fun SignTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope, s
                 }
             }
 
-            Text("Signature Mode", style = MaterialTheme.typography.labelMedium)
+            Text(stringResource(R.string.sign_mode), style = MaterialTheme.typography.labelMedium)
             var modeExpanded by remember { mutableStateOf(false) }
             ExposedDropdownMenuBox(expanded = modeExpanded, onExpandedChange = { modeExpanded = it }) {
                 OutlinedTextField(
                     value = modes.first { it.first == signMode }.second,
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text("Mode") },
+                    label = { Text(stringResource(R.string.field_mode)) },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(modeExpanded) },
                     modifier = Modifier.fillMaxWidth().menuAnchor()
                 )
@@ -126,7 +127,7 @@ fun SignTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope, s
                 }
             }
 
-            Text("Hash Algorithm", style = MaterialTheme.typography.labelMedium)
+            Text(stringResource(R.string.field_hash_algorithm), style = MaterialTheme.typography.labelMedium)
             var hashExpanded by remember { mutableStateOf(false) }
             val hashOptions = listOf(HashAlgorithm.SHA256 to "SHA-256 (default)", HashAlgorithm.SHA512 to "SHA-512")
             ExposedDropdownMenuBox(expanded = hashExpanded, onExpandedChange = { hashExpanded = it }) {
@@ -134,7 +135,7 @@ fun SignTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope, s
                     value = hashOptions.first { it.first == hashAlgorithm }.second,
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text("Hash") },
+                    label = { Text(stringResource(R.string.field_hash)) },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(hashExpanded) },
                     modifier = Modifier.fillMaxWidth().menuAnchor()
                 )
@@ -147,7 +148,7 @@ fun SignTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope, s
 
             OutlinedTextField(
                 value = passphrase, onValueChange = { passphrase = it },
-                label = { Text("Passphrase") },
+                label = { Text(stringResource(R.string.field_passphrase)) },
                 visualTransformation = PasswordVisualTransformation(),
                 modifier = Modifier.fillMaxWidth(), singleLine = true
             )
@@ -169,7 +170,7 @@ fun SignTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope, s
             ) {
                 if (isLoading) { CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp); Spacer(Modifier.width(8.dp)) }
                 Icon(Icons.Default.Lock, null); Spacer(Modifier.width(8.dp))
-                Text("Sign", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.nav_sign), fontWeight = FontWeight.Bold)
             }
 
             outputPath?.let { SuccessCard("Signed file created successfully.", outputPath = it) }
@@ -202,20 +203,20 @@ fun EncryptTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope
             modifier = Modifier.padding(padding).padding(16.dp).verticalScroll(scroll),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text("Encrypt File (Asymmetric)", style = MaterialTheme.typography.titleMedium)
-            Text("Encrypt using recipient's public key.", style = MaterialTheme.typography.bodySmall,
+            Text(stringResource(R.string.encrypt_title_asymmetric), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.encrypt_desc_asymmetric), style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
 
             FilePickerCard("Input File", inputUri, Icons.Default.InsertDriveFile) { filePicker.launch("*/*") }
 
             if (publicKeys.isEmpty()) {
                 Card(modifier = Modifier.fillMaxWidth()) {
-                    Text("No public keys found. Import recipient keys first.",
+                    Text(stringResource(R.string.encrypt_no_pub_keys),
                         modifier = Modifier.padding(16.dp),
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                 }
             } else {
-                Text("Recipients (select one or more)", style = MaterialTheme.typography.labelMedium)
+                Text(stringResource(R.string.encrypt_recipients), style = MaterialTheme.typography.labelMedium)
                 publicKeys.forEach { key ->
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                         Checkbox(
@@ -257,7 +258,7 @@ fun EncryptTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope
             ) {
                 if (isLoading) { CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp); Spacer(Modifier.width(8.dp)) }
                 Icon(Icons.Default.Lock, null); Spacer(Modifier.width(8.dp))
-                Text("Encrypt", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.encrypt_button_asymmetric), fontWeight = FontWeight.Bold)
             }
 
             outputPath?.let { SuccessCard("Encrypted file created successfully.", outputPath = it) }
@@ -291,8 +292,8 @@ fun SymmetricEncryptTab(repo: KeyringRepository, scope: kotlinx.coroutines.Corou
             modifier = Modifier.padding(padding).padding(16.dp).verticalScroll(scroll),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text("Encrypt File (Symmetric)", style = MaterialTheme.typography.titleMedium)
-            Text("Encrypt with passphrase — no key pair required.",
+            Text(stringResource(R.string.encrypt_title_symmetric), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.encrypt_desc_symmetric),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
 
@@ -300,20 +301,20 @@ fun SymmetricEncryptTab(repo: KeyringRepository, scope: kotlinx.coroutines.Corou
 
             OutlinedTextField(
                 value = passphrase, onValueChange = { passphrase = it },
-                label = { Text("Passphrase") },
+                label = { Text(stringResource(R.string.field_passphrase)) },
                 visualTransformation = PasswordVisualTransformation(),
                 modifier = Modifier.fillMaxWidth(), singleLine = true
             )
 
             OutlinedTextField(
                 value = confirm, onValueChange = { confirm = it },
-                label = { Text("Confirm Passphrase") },
+                label = { Text(stringResource(R.string.field_passphrase_confirm)) },
                 visualTransformation = PasswordVisualTransformation(),
                 modifier = Modifier.fillMaxWidth(), singleLine = true,
                 isError = confirm.isNotEmpty() && !passphraseMatch,
                 supportingText = {
                     if (confirm.isNotEmpty() && !passphraseMatch)
-                        Text("Passphrase does not match", color = MaterialTheme.colorScheme.error)
+                        Text(stringResource(R.string.field_passphrase_mismatch), color = MaterialTheme.colorScheme.error)
                 }
             )
 
@@ -340,7 +341,7 @@ fun SymmetricEncryptTab(repo: KeyringRepository, scope: kotlinx.coroutines.Corou
             ) {
                 if (isLoading) { CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp); Spacer(Modifier.width(8.dp)) }
                 Icon(Icons.Default.Lock, null); Spacer(Modifier.width(8.dp))
-                Text("Encrypt (Symmetric)", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.encrypt_button_symmetric), fontWeight = FontWeight.Bold)
             }
 
             outputPath?.let { SuccessCard("Encrypted file created successfully.", outputPath = it) }
@@ -379,7 +380,7 @@ fun SuccessCard(message: String, outputPath: String? = null) {
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(Icons.Default.Share, null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp)); Text("Share")
+                    Spacer(Modifier.width(4.dp)); Text(stringResource(R.string.action_share))
                 }
             }
         }

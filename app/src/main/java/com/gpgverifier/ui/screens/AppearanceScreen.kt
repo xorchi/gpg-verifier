@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,7 +52,7 @@ fun AppearanceScreen(
         modifier = modifier.fillMaxSize().verticalScroll(scrollState).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text("Appearance", style = MaterialTheme.typography.titleMedium,
+        Text(stringResource(R.string.nav_appearance), style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface)
 
         // ── Theme ────────────────────────────────────────────────────────────

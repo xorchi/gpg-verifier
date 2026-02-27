@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -33,7 +34,7 @@ fun AboutScreen(modifier: Modifier = Modifier) {
         modifier = modifier.fillMaxSize().verticalScroll(scrollState).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text("About", style = MaterialTheme.typography.titleMedium,
+        Text(stringResource(R.string.nav_about), style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface)
 
         // App info card
@@ -46,13 +47,13 @@ fun AboutScreen(modifier: Modifier = Modifier) {
                 Icon(Icons.Default.Shield, null,
                     modifier = Modifier.size(56.dp),
                     tint = MaterialTheme.colorScheme.primary)
-                Text("GPG Verifier", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Text("v$versionName", style = MaterialTheme.typography.bodyMedium,
+                Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.app_version, versionName)), style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     AssistChip(onClick = {}, label = { Text(buildType, fontSize = 12.sp) })
-                    AssistChip(onClick = {}, label = { Text("Build $versionCode", fontSize = 12.sp) })
-                    AssistChip(onClick = {}, label = { Text("API ${android.os.Build.VERSION.SDK_INT}", fontSize = 12.sp) })
+                    AssistChip(onClick = {}, label = { Text(stringResource(R.string.build_version, versionCode.toInt()), fontSize = 12.sp) })
+                    AssistChip(onClick = {}, label = { Text(stringResource(R.string.api_level, android.os.Build.VERSION.SDK_INT), fontSize = 12.sp) })
                 }
             }
         }
@@ -73,9 +74,9 @@ fun AboutScreen(modifier: Modifier = Modifier) {
             ) {
                 Icon(Icons.Default.Code, null, tint = MaterialTheme.colorScheme.primary)
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("GitHub Repository", style = MaterialTheme.typography.bodyMedium,
+                    Text(stringResource(R.string.about_github_repo), style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium)
-                    Text("github.com/xorchi/gpg-verifier",
+                    Text(stringResource(R.string.about_github_url),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary)
                 }
@@ -132,7 +133,7 @@ fun AboutScreen(modifier: Modifier = Modifier) {
         }
 
         Spacer(Modifier.height(16.dp))
-        Text("Open source — contributions welcome",
+        Text(stringResource(R.string.about_open_source),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
             modifier = Modifier.align(Alignment.CenterHorizontally))

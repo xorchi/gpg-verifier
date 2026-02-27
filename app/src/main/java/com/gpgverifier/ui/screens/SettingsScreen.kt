@@ -7,6 +7,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -50,7 +51,7 @@ fun SettingsScreen(filesDir: File, modifier: Modifier = Modifier) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("Settings", style = MaterialTheme.typography.titleMedium,
+            Text(stringResource(R.string.nav_settings), style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface)
 
             // ── Crypto ──────────────────────────────────────────────────────
@@ -63,9 +64,9 @@ fun SettingsScreen(filesDir: File, modifier: Modifier = Modifier) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text("Default Hash Algorithm", style = MaterialTheme.typography.bodyMedium,
+                        Text(stringResource(R.string.settings_default_hash), style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Medium)
-                        Text("Used for signing operations", style = MaterialTheme.typography.labelSmall,
+                        Text(stringResource(R.string.settings_hash_desc), style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                     }
                     Box {
@@ -102,9 +103,9 @@ fun SettingsScreen(filesDir: File, modifier: Modifier = Modifier) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text("Minimum Log Level", style = MaterialTheme.typography.bodyMedium,
+                        Text(stringResource(R.string.settings_min_log_level), style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Medium)
-                        Text("Lower = more detail, higher = less noise",
+                        Text(stringResource(R.string.settings_log_level_desc),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                     }
@@ -140,7 +141,7 @@ fun SettingsScreen(filesDir: File, modifier: Modifier = Modifier) {
 
             SettingsCard {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Default Keyserver", style = MaterialTheme.typography.bodyMedium,
+                    Text(stringResource(R.string.settings_default_keyserver), style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium)
                     if (keyserverEditing) {
                         OutlinedTextField(
@@ -148,7 +149,7 @@ fun SettingsScreen(filesDir: File, modifier: Modifier = Modifier) {
                             onValueChange = { keyserverDraft = it },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
-                            label = { Text("Keyserver URL") },
+                            label = { Text(stringResource(R.string.field_keyserver_url)) },
                             trailingIcon = {
                                 Row {
                                     IconButton(onClick = {
@@ -192,9 +193,9 @@ fun SettingsScreen(filesDir: File, modifier: Modifier = Modifier) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
-                            Text("App Log", style = MaterialTheme.typography.bodyMedium,
+                            Text(stringResource(R.string.settings_app_log), style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Medium)
-                            Text("${logSize / 1024}KB stored", style = MaterialTheme.typography.labelSmall,
+                            Text(stringResource(R.string.log_size_kb, (logSize / 1024).toInt())), style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -213,7 +214,7 @@ fun SettingsScreen(filesDir: File, modifier: Modifier = Modifier) {
                                         snack.showSnackbar("✗ ${e.message}")
                                     }
                                 }
-                            }) { Text("Export") }
+                            }) { Text(stringResource(R.string.action_export)) }
 
                             Button(
                                 onClick = {
@@ -229,7 +230,7 @@ fun SettingsScreen(filesDir: File, modifier: Modifier = Modifier) {
                                     }
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                            ) { Text("Clear") }
+                            ) { Text(stringResource(R.string.action_clear)) }
                         }
                     }
                 }
@@ -254,7 +255,7 @@ fun SettingsScreen(filesDir: File, modifier: Modifier = Modifier) {
             ) {
                 Icon(Icons.Default.RestartAlt, null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Reset All Settings")
+                Text(stringResource(R.string.action_reset_settings))
             }
         }
     }

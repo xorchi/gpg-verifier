@@ -17,6 +17,7 @@ import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -56,7 +57,7 @@ fun VerifyScreen(modifier: Modifier = Modifier) {
         modifier = modifier.fillMaxSize().verticalScroll(scrollState).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text("Verify Signature", style = MaterialTheme.typography.titleMedium,
+        Text(stringResource(R.string.verify_button), style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface)
 
         // ── Toggle Mode ──────────────────────────────────────────────────────
@@ -159,10 +160,10 @@ fun VerifyScreen(modifier: Modifier = Modifier) {
             if (isLoading) {
                 CircularProgressIndicator(modifier = Modifier.size(20.dp),
                     color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
-                Spacer(Modifier.width(8.dp)); Text("Verifying...")
+                Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.verifying))
             } else {
                 Icon(Icons.Default.Shield, null); Spacer(Modifier.width(8.dp))
-                Text("Verify Signature", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.verify_button), fontWeight = FontWeight.Bold)
             }
         }
 

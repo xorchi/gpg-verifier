@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -82,7 +83,7 @@ fun TextViewerScreen(modifier: Modifier = Modifier) {
         modifier = modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text("Text Viewer", style = MaterialTheme.typography.titleMedium,
+        Text(stringResource(R.string.nav_viewer), style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface)
 
         // File picker
@@ -99,13 +100,13 @@ fun TextViewerScreen(modifier: Modifier = Modifier) {
                     tint = if (fileUri != null) MaterialTheme.colorScheme.primary
                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Input File", style = MaterialTheme.typography.labelMedium,
+                    Text(stringResource(R.string.field_input_file), style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                     Text(if (fileName.isNotBlank()) fileName else "Tap to open file",
                         style = MaterialTheme.typography.bodyMedium)
                 }
                 if (fileUri != null) {
-                    Text("${fileSize / 1024}KB", style = MaterialTheme.typography.labelSmall,
+                    Text(stringResource(R.string.file_size_kb, (fileSize / 1024).toInt())), style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
                 }
             }
@@ -130,7 +131,7 @@ fun TextViewerScreen(modifier: Modifier = Modifier) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("${content.lines().size} lines · ${fileSize}B",
+                Text(stringResource(R.string.file_stats, content.lines().size, fileSize.toInt())),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {

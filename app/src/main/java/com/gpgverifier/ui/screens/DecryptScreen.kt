@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -57,7 +58,7 @@ fun DecryptScreen(modifier: Modifier = Modifier) {
                 .verticalScroll(scroll),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text("Decrypt File", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.decrypt_title), style = MaterialTheme.typography.titleMedium)
 
             FilePickerCard("Encrypted File (.gpg / .asc)", inputUri, Icons.Default.Lock) {
                 filePicker.launch("*/*")
@@ -66,7 +67,7 @@ fun DecryptScreen(modifier: Modifier = Modifier) {
             OutlinedTextField(
                 value = passphrase,
                 onValueChange = { passphrase = it },
-                label = { Text("Passphrase") },
+                label = { Text(stringResource(R.string.field_passphrase)) },
                 visualTransformation = PasswordVisualTransformation(),
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
@@ -92,7 +93,7 @@ fun DecryptScreen(modifier: Modifier = Modifier) {
                 }
                 Icon(Icons.Default.LockOpen, null)
                 Spacer(Modifier.width(8.dp))
-                Text("Decrypt", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.nav_decrypt), fontWeight = FontWeight.Bold)
             }
 
             result?.let { res ->
@@ -108,7 +109,7 @@ fun DecryptScreen(modifier: Modifier = Modifier) {
                                 Icon(Icons.Default.CheckCircle, null,
                                     tint = MaterialTheme.colorScheme.primary)
                                 Spacer(Modifier.width(8.dp))
-                                Text("Decryption successful", fontWeight = FontWeight.Bold)
+                                Text(stringResource(R.string.decrypt_success), fontWeight = FontWeight.Bold)
                             }
 
                             // ── Tombol Save & Share ───────────────────────────
@@ -122,7 +123,7 @@ fun DecryptScreen(modifier: Modifier = Modifier) {
                                 ) {
                                     Icon(Icons.Default.Save, null, modifier = Modifier.size(16.dp))
                                     Spacer(Modifier.width(4.dp))
-                                    Text("Save")
+                                    Text(stringResource(R.string.action_save))
                                 }
                                 OutlinedButton(
                                     onClick = { FileShareHelper.shareFile(context, res.outputPath) },
@@ -130,11 +131,11 @@ fun DecryptScreen(modifier: Modifier = Modifier) {
                                 ) {
                                     Icon(Icons.Default.Share, null, modifier = Modifier.size(16.dp))
                                     Spacer(Modifier.width(4.dp))
-                                    Text("Share")
+                                    Text(stringResource(R.string.action_share))
                                 }
                             }
 
-                            Text("Cache: ${res.outputPath}",
+                            Text(stringResource(R.string.cache_path, res.outputPath)),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f))
                         }

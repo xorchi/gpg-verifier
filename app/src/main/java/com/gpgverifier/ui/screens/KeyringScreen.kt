@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -191,7 +192,7 @@ fun KeyringScreen(modifier: Modifier = Modifier) {
                                 }
                             },
                             modifier = Modifier.weight(1f)
-                        ) { Text("Backup All Pub", fontSize = 12.sp) }
+                        ) { Text(stringResource(R.string.keys_backup_all_pub), fontSize = 12.sp) }
                         OutlinedButton(
                             onClick = {
                                 scope.launch {
@@ -203,7 +204,7 @@ fun KeyringScreen(modifier: Modifier = Modifier) {
                                 }
                             },
                             modifier = Modifier.weight(1f)
-                        ) { Text("Backup All Priv", fontSize = 12.sp) }
+                        ) { Text(stringResource(R.string.keys_backup_all_priv), fontSize = 12.sp) }
                     }
                 }
         item { Spacer(Modifier.height(120.dp)) }
@@ -312,7 +313,7 @@ fun KeyCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(key.uids.firstOrNull() ?: key.keyId,
                         fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("0x${key.keyId}", style = MaterialTheme.typography.labelSmall,
+                    Text(stringResource(R.string.key_id_prefix, key.keyId)), style = MaterialTheme.typography.labelSmall,
                         fontFamily = FontFamily.Monospace,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
                 }
@@ -355,23 +356,23 @@ fun KeyCard(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = onTrust, modifier = Modifier.weight(1f)) {
                         Icon(Icons.Default.Shield, null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp)); Text("Trust")
+                        Spacer(Modifier.width(4.dp)); Text(stringResource(R.string.keys_trust))
                     }
                     OutlinedButton(onClick = onExportPublic, modifier = Modifier.weight(1f)) {
                         Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp)); Text("Copy Pub")
+                        Spacer(Modifier.width(4.dp)); Text(stringResource(R.string.keys_copy_pub))
                     }
                 }
                 // Row 2: Save pub + Save priv (jika ada)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = onBackupPublic, modifier = Modifier.weight(1f)) {
                         Icon(Icons.Default.Save, null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp)); Text("Save Pub")
+                        Spacer(Modifier.width(4.dp)); Text(stringResource(R.string.keys_save_pub))
                     }
                     if (onBackupSecret != null) {
                         OutlinedButton(onClick = onBackupSecret, modifier = Modifier.weight(1f)) {
                             Icon(Icons.Default.Lock, null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(4.dp)); Text("Save Priv")
+                            Spacer(Modifier.width(4.dp)); Text(stringResource(R.string.keys_save_priv))
                         }
                     }
                 }
@@ -379,7 +380,7 @@ fun KeyCard(
                 // Upload to keyserver button
                 OutlinedButton(onClick = onUploadToKeyserver, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.CloudUpload, null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp)); Text("Upload to Keyserver")
+                    Spacer(Modifier.width(4.dp)); Text(stringResource(R.string.keys_upload_keyserver))
                 }
                 if (onExportSecret != null) {
                     var showExportSecConfirm by remember { mutableStateOf(false) }
@@ -391,12 +392,12 @@ fun KeyCard(
                         Icon(Icons.Default.Warning, null, modifier = Modifier.size(16.dp),
                             tint = MaterialTheme.colorScheme.error)
                         Spacer(Modifier.width(4.dp))
-                        Text("Copy Sec Key", color = MaterialTheme.colorScheme.error)
+                        Text(stringResource(R.string.keys_copy_sec), color = MaterialTheme.colorScheme.error)
                     }
                     if (showExportSecConfirm) {
                         AlertDialog(
                             onDismissRequest = { showExportSecConfirm = false },
-                            title = { Text("Export Secret Key?") },
+                            title = { Text(stringResource(R.string.keys_export_secret_title)) },
                             text  = {
                                 Text(
                                     "Your secret key will be copied to the clipboard as plain text. " +
@@ -410,10 +411,10 @@ fun KeyCard(
                                     colors = ButtonDefaults.textButtonColors(
                                         contentColor = MaterialTheme.colorScheme.error
                                     )
-                                ) { Text("Copy Anyway") }
+                                ) { Text(stringResource(R.string.keys_copy_anyway)) }
                             },
                             dismissButton = {
-                                TextButton(onClick = { showExportSecConfirm = false }) { Text("Cancel") }
+                                TextButton(onClick = { showExportSecConfirm = false }) { Text(stringResource(R.string.action_cancel)) }
                             }
                         )
                     }
@@ -423,7 +424,7 @@ fun KeyCard(
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                     modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.Delete, null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp)); Text("Delete Key")
+                    Spacer(Modifier.width(4.dp)); Text(stringResource(R.string.action_delete))
                 }
             }
         }
@@ -432,14 +433,14 @@ fun KeyCard(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Delete Key?") },
-            text  = { Text("This will permanently remove the key from your keyring.") },
+            title = { Text(stringResource(R.string.keys_delete_title)) },
+            text  = { Text(stringResource(R.string.keys_delete_confirm)) },
             confirmButton = {
                 TextButton(onClick = { showDeleteConfirm = false; onDelete() },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) { Text("Delete") }
+                ) { Text(stringResource(R.string.action_delete)) }
             },
-            dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text(stringResource(R.string.action_cancel)) } }
         )
     }
 }
@@ -452,23 +453,23 @@ fun KeyserverImportDialog(onDismiss: () -> Unit, onImport: (String, String) -> U
     var keyserver by remember { mutableStateOf("hkps://keyserver.ubuntu.com") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Import from Keyserver") },
+        title = { Text(stringResource(R.string.keys_import_keyserver)) },
         text  = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(value = keyId, onValueChange = { keyId = it },
-                    label = { Text("Key ID or Fingerprint") },
+                    label = { Text(stringResource(R.string.field_key_id)) },
                     placeholder = { Text("e.g. 0xABCDEF12") },
                     singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = keyserver, onValueChange = { keyserver = it },
-                    label = { Text("Keyserver") }, singleLine = true,
+                    label = { Text(stringResource(R.string.field_keyserver)) }, singleLine = true,
                     modifier = Modifier.fillMaxWidth())
             }
         },
         confirmButton = {
             TextButton(onClick = { if (keyId.isNotBlank()) onImport(keyId.trim(), keyserver.trim()) },
-                enabled = keyId.isNotBlank()) { Text("Import") }
+                enabled = keyId.isNotBlank()) { Text(stringResource(R.string.action_import)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
 }
 
@@ -477,21 +478,21 @@ fun KeyserverUploadDialog(key: GpgKey, onDismiss: () -> Unit, onUpload: (String)
     var keyserver by remember { mutableStateOf("hkps://keyserver.ubuntu.com") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Upload to Keyserver") },
+        title = { Text(stringResource(R.string.keys_upload_keyserver)) },
         text  = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Key: ${key.uids.firstOrNull() ?: key.keyId}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                 OutlinedTextField(value = keyserver, onValueChange = { keyserver = it },
-                    label = { Text("Keyserver") }, singleLine = true,
+                    label = { Text(stringResource(R.string.field_keyserver)) }, singleLine = true,
                     modifier = Modifier.fillMaxWidth())
             }
         },
         confirmButton = {
-            TextButton(onClick = { onUpload(keyserver.trim()) }) { Text("Upload") }
+            TextButton(onClick = { onUpload(keyserver.trim()) }) { Text(stringResource(R.string.action_upload)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
 }
 
@@ -517,18 +518,18 @@ fun GenerateKeyDialog(onDismiss: () -> Unit, onGenerate: (KeyGenParams) -> Unit)
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Generate Key Pair") },
+        title = { Text(stringResource(R.string.keys_generate_title)) },
         text  = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(value = name, onValueChange = { name = it },
-                    label = { Text("Name *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    label = { Text(stringResource(R.string.field_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = email, onValueChange = { email = it },
-                    label = { Text("Email *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    label = { Text(stringResource(R.string.field_email)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = comment, onValueChange = { comment = it },
-                    label = { Text("Comment (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    label = { Text(stringResource(R.string.field_comment)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(
                     value = passphrase, onValueChange = { passphrase = it },
-                    label = { Text("Passphrase *") }, singleLine = true,
+                    label = { Text(stringResource(R.string.field_passphrase_required)) }, singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth(),
                     isError = passphrase.isNotEmpty() && !passStrong,
@@ -537,27 +538,27 @@ fun GenerateKeyDialog(onDismiss: () -> Unit, onGenerate: (KeyGenParams) -> Unit)
                             Text(passHint, color = MaterialTheme.colorScheme.error,
                                 style = MaterialTheme.typography.labelSmall)
                         else if (passphrase.isEmpty())
-                            Text("Required", color = MaterialTheme.colorScheme.error,
+                            Text(stringResource(R.string.field_required), color = MaterialTheme.colorScheme.error,
                                 style = MaterialTheme.typography.labelSmall)
                     }
                 )
                 OutlinedTextField(
                     value = confirm, onValueChange = { confirm = it },
-                    label = { Text("Confirm Passphrase *") }, singleLine = true,
+                    label = { Text(stringResource(R.string.field_passphrase_confirm_required)) }, singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth(),
                     isError = confirm.isNotEmpty() && !passMatch,
                     supportingText = {
                         if (confirm.isNotEmpty() && !passMatch)
-                            Text("Passphrase does not match", color = MaterialTheme.colorScheme.error,
+                            Text(stringResource(R.string.field_passphrase_mismatch), color = MaterialTheme.colorScheme.error,
                                 style = MaterialTheme.typography.labelSmall)
                     }
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(value = keySize, onValueChange = { keySize = it },
-                        label = { Text("Key Size") }, singleLine = true, modifier = Modifier.weight(1f))
+                        label = { Text(stringResource(R.string.field_key_size)) }, singleLine = true, modifier = Modifier.weight(1f))
                     OutlinedTextField(value = expiry, onValueChange = { expiry = it },
-                        label = { Text("Expiry (days, 0=never)") }, singleLine = true, modifier = Modifier.weight(1f))
+                        label = { Text(stringResource(R.string.field_expiry)) }, singleLine = true, modifier = Modifier.weight(1f))
                 }
             }
         },
@@ -576,9 +577,9 @@ fun GenerateKeyDialog(onDismiss: () -> Unit, onGenerate: (KeyGenParams) -> Unit)
                     }
                 },
                 enabled = canGenerate
-            ) { Text("Generate") }
+            ) { Text(stringResource(R.string.action_generate)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
 }
 
@@ -588,7 +589,7 @@ fun TrustDialog(key: GpgKey, onDismiss: () -> Unit, onSetTrust: (Int) -> Unit) {
     var selected by remember { mutableIntStateOf(3) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Set Trust Level") },
+        title = { Text(stringResource(R.string.keys_set_trust)) },
         text  = {
             Column {
                 Text(key.uids.firstOrNull() ?: key.keyId,
@@ -603,8 +604,8 @@ fun TrustDialog(key: GpgKey, onDismiss: () -> Unit, onSetTrust: (Int) -> Unit) {
                 }
             }
         },
-        confirmButton = { TextButton(onClick = { onSetTrust(selected) }) { Text("Apply") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        confirmButton = { TextButton(onClick = { onSetTrust(selected) }) { Text(stringResource(R.string.action_apply)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
 }
 
@@ -614,9 +615,9 @@ fun EmptyKeyringMessage() {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(Icons.Default.Key, null, modifier = Modifier.size(48.dp),
                 tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f))
-            Text("No keys found", style = MaterialTheme.typography.titleMedium,
+            Text(stringResource(R.string.keys_no_keys), style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
-            Text("Import or generate a key to get started",
+            Text(stringResource(R.string.keys_empty_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
         }
