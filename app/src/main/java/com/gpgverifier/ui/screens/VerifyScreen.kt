@@ -282,11 +282,3 @@ fun VerificationResultCard(
     }
 }
 
-@Composable
-private fun InfoRow(label: String, value: String) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-        Text(value, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
-    }
-}
