@@ -6,6 +6,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -126,16 +128,17 @@ fun AppearanceScreen(
         SectionHeader("Accent Color")
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(
+                LazyRow(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp)
                 ) {
-                    ACCENT_COLORS.forEach { (hex, name) ->
+                    items(ACCENT_COLORS) { (hex, name) ->
                         val color = Color(android.graphics.Color.parseColor("#$hex"))
                         val isSelected = accent == hex
                         Box(
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(44.dp)
                                 .clip(CircleShape)
                                 .background(color)
                                 .then(if (isSelected) Modifier.border(3.dp, MaterialTheme.colorScheme.onSurface, CircleShape) else Modifier)
@@ -148,7 +151,7 @@ fun AppearanceScreen(
                         ) {
                             if (isSelected) Icon(Icons.Default.Check, null,
                                 tint = if (hex == "FFEB3B") Color.Black else Color.White,
-                                modifier = Modifier.size(20.dp))
+                                modifier = Modifier.size(22.dp))
                         }
                     }
                 }

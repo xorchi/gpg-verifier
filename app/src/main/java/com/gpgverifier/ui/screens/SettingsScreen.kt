@@ -198,24 +198,33 @@ fun SettingsScreen(filesDir: File, modifier: Modifier = Modifier) {
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = {
-                                scope.launch {
-                                    try {
-                                        val dest = AppLogger.exportAllLogs(
-                                            android.os.Environment.getExternalStoragePublicDirectory(
-                                                android.os.Environment.DIRECTORY_DOWNLOADS))
-                                        val src = File(filesDir, "logs/app.log")
-                                        logSize = if (src.exists()) src.length() else 0L
-                                        AppLogger.i("Full log exported: ${dest.name} (${dest.length()}B)", AppLogger.TAG_UI)
-                                        snack.showSnackbar("✓ Exported to Downloads/${dest.name}")
-                                    } catch (e: Exception) {
-                                        AppLogger.ex("exportLog", e, AppLogger.TAG_UI)
-                                        snack.showSnackbar("✗ ${e.message}")
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    scope.launch {
+                                        try {
+                                            val dest = AppLogger.exportAllLogs(
+                                                android.os.Environment.getExternalStoragePublicDirectory(
+                                                    android.os.Environment.DIRECTORY_DOWNLOADS))
+                                            val src = File(filesDir, "logs/app.log")
+                                            logSize = if (src.exists()) src.length() else 0L
+                                            AppLogger.i("Full log exported: ${dest.name} (${dest.length()}B)", AppLogger.TAG_UI)
+                                            snack.showSnackbar("✓ Exported to Downloads/${dest.name}")
+                                        } catch (e: Exception) {
+                                            AppLogger.ex("exportLog", e, AppLogger.TAG_UI)
+                                            snack.showSnackbar("✗ ${e.message}")
+                                        }
                                     }
-                                }
-                            }) { Text(stringResource(R.string.nav_export_log)) }
-
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.FileDownload, null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text(stringResource(R.string.nav_export_log))
+                            }
                             OutlinedButton(
                                 onClick = {
                                     scope.launch {
@@ -223,16 +232,22 @@ fun SettingsScreen(filesDir: File, modifier: Modifier = Modifier) {
                                             AppLogger.clearLogs()
                                             logSize = 0L
                                             snack.showSnackbar("✓ Log cleared")
+                                        } catch (e: kotlinx.coroutines.CancellationException) {
+                                            // Scope cancelled — normal when navigating away
                                         } catch (e: Exception) {
                                             AppLogger.ex("clearLogs", e, AppLogger.TAG_UI)
-                                            snack.showSnackbar("✗ ${e.message}")
                                         }
                                     }
                                 },
+                                modifier = Modifier.fillMaxWidth(),
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                                 border = ButtonDefaults.outlinedButtonBorder.copy(
                                     brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.error))
-                            ) { Text(stringResource(R.string.action_clear)) }
+                            ) {
+                                Icon(Icons.Default.DeleteOutline, null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text(stringResource(R.string.action_clear))
+                            }
                         }
                     }
                 }

@@ -1335,9 +1335,17 @@ class GpgExecutor(private val context: Context) {
             // Decompress if needed — all 3 passes must operate on the same (decompressed) level
             val innerBytes: ByteArray
             val topObj = PGPObjectFactory(decodedBytes.inputStream(), calc).nextObject()
+            AppLogger.d("verifyEmbedded: topObj=${topObj?.javaClass?.simpleName} decodedSize=${decodedBytes.size}B rawSize=${rawBytes.size}B", AppLogger.TAG_CRYPTO)
             innerBytes = if (topObj is PGPCompressedData) {
-                topObj.dataStream.readBytes()
+                val b = topObj.dataStream.readBytes()
+                AppLogger.d("verifyEmbedded: decompressed innerBytes=${b.size}B firstObj=${PGPObjectFactory(b.inputStream(), calc).nextObject()?.javaClass?.simpleName}", AppLogger.TAG_CRYPTO)
+                b
+            } else if (topObj is PGPOnePassSignatureList) {
+                // Not compressed — topObj already consumed, reconstruct from decodedBytes
+                AppLogger.d("verifyEmbedded: not compressed, topObj=OnePassSignatureList", AppLogger.TAG_CRYPTO)
+                decodedBytes
             } else {
+                AppLogger.d("verifyEmbedded: unexpected topObj, using decodedBytes as-is", AppLogger.TAG_CRYPTO)
                 decodedBytes
             }
 
