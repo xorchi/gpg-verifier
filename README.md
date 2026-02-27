@@ -81,34 +81,72 @@ Built with **Kotlin + Jetpack Compose**. Uses [Bouncy Castle](https://www.bouncy
 ## Project Structure
 
 ```
-app/src/main/
-├── java/com/gpgverifier/
-│   ├── MainActivity.kt              # Entry point, bottom navigation, BC provider init
-│   ├── executor/
-│   │   └── GpgExecutor.kt           # All GPG operations via Bouncy Castle
-│   ├── keyring/
-│   │   └── KeyringRepository.kt     # Coroutine wrapper, URI-to-File conversion
-│   ├── model/
-│   │   └── Models.kt                # Data classes and sealed result types
-│   ├── ui/
-│   │   ├── screens/
-│   │   │   ├── VerifyScreen.kt      # Signature verification UI
-│   │   │   ├── SignEncryptScreen.kt # Sign + Encrypt tabs UI
-│   │   │   ├── DecryptScreen.kt     # Decryption UI
-│   │   │   └── KeyringScreen.kt     # Key management UI + dialogs
-│   │   └── theme/
-│   │       └── Theme.kt             # Material 3 dark color scheme
-│   └── util/
-│       ├── AppLogger.kt             # Internal logger (logcat + filesDir/logs/app.log)
-│       └── FileShareHelper.kt       # FileProvider share + SAF save helpers
-├── res/
-│   ├── xml/
-│   │   └── file_provider_paths.xml  # FileProvider path configuration
-│   ├── drawable/                    # Adaptive launcher icon
-│   └── values/
-│       ├── strings.xml
-│       └── themes.xml
-└── AndroidManifest.xml
+gpg-verifier
+├── LICENSE
+├── README.md
+├── RELEASE_NOTES.md
+├── app
+│   ├── build.gradle.kts
+│   ├── proguard-rules.pro
+│   └── src
+│       └── main
+│           ├── AndroidManifest.xml
+│           ├── java
+│           │   └── com
+│           │       └── gpgverifier
+│           │           ├── MainActivity.kt
+│           │           ├── MainActivity.kt.bak
+│           │           ├── executor
+│           │           │   └── GpgExecutor.kt
+│           │           ├── keyring
+│           │           │   └── KeyringRepository.kt
+│           │           ├── model
+│           │           │   └── Models.kt
+│           │           ├── prefs
+│           │           │   └── AppPreferences.kt
+│           │           ├── ui
+│           │           │   ├── screens
+│           │           │   │   ├── AboutScreen.kt
+│           │           │   │   ├── AppearanceScreen.kt
+│           │           │   │   ├── DecryptScreen.kt
+│           │           │   │   ├── KeyringScreen.kt
+│           │           │   │   ├── SettingsScreen.kt
+│           │           │   │   ├── SharedComponents.kt
+│           │           │   │   ├── SignEncryptScreen.kt
+│           │           │   │   ├── TextViewerScreen.kt
+│           │           │   │   └── VerifyScreen.kt
+│           │           │   └── theme
+│           │           │       └── Theme.kt
+│           │           └── util
+│           │               ├── AppLogger.kt
+│           │               └── FileShareHelper.kt
+│           ├── jniLibs
+│           │   └── armeabi-v7a
+│           └── res
+│               ├── drawable
+│               │   ├── ic_launcher.xml
+│               │   ├── ic_launcher_background.xml
+│               │   └── ic_launcher_foreground.xml
+│               ├── mipmap-anydpi-v26
+│               │   └── ic_launcher.xml
+│               ├── values
+│               │   ├── strings.xml
+│               │   └── themes.xml
+│               ├── values-in
+│               │   └── strings.xml
+│               └── xml
+│                   └── file_provider_paths.xml
+├── build.gradle.kts
+├── docs
+│   └── xorchi-gpg-pubkey.asc
+├── gradle
+│   ├── libs.versions.toml
+│   └── wrapper
+│       ├── gradle-wrapper.jar
+│       └── gradle-wrapper.properties
+├── gradlew
+├── scripts
+└── settings.gradle.kts
 ```
 
 ---
