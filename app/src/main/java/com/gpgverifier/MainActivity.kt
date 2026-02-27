@@ -188,7 +188,12 @@ fun MainScaffold(filesDir: File) {
                 navItems.forEachIndexed { index, item ->
                     NavigationBarItem(
                         selected  = selectedTab == index,
-                        onClick   = { selectedTab = index },
+                        onClick   = {
+                            selectedTab = index
+                            showSettings   = false
+                            showAppearance = false
+                            showAbout      = false
+                        },
                         icon      = { Icon(if (selectedTab == index) item.selectedIcon else item.unselectedIcon,
                                          contentDescription = item.label) },
                         label     = null
