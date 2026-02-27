@@ -93,6 +93,48 @@ fun SettingsScreen(filesDir: File, modifier: Modifier = Modifier) {
                 }
             }
 
+            // ── Log Level ───────────────────────────────────────────────────
+            SectionHeader("Log Level")
+            SettingsCard {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("Minimum Log Level", style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium)
+                        Text("Lower = more detail, higher = less noise",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                    }
+                    var levelMenuExpanded by remember { mutableStateOf(false) }
+                    var currentLevel by remember { mutableStateOf(AppLogger.minLevel.name) }
+                    Box {
+                        OutlinedButton(onClick = { levelMenuExpanded = true }) {
+                            Text(currentLevel)
+                            Icon(Icons.Default.ArrowDropDown, null, modifier = Modifier.size(16.dp))
+                        }
+                        DropdownMenu(expanded = levelMenuExpanded, onDismissRequest = { levelMenuExpanded = false }) {
+                            listOf("DEBUG", "INFO", "WARN", "ERROR").forEach { lvl ->
+                                DropdownMenuItem(
+                                    text = { Text(lvl) },
+                                    onClick = {
+                                        AppLogger.minLevel = AppLogger.Level.valueOf(lvl)
+                                        currentLevel = lvl
+                                        AppLogger.i("Log level set to $lvl", AppLogger.TAG_UI)
+                                        levelMenuExpanded = false
+                                    },
+                                    leadingIcon = if (currentLevel == lvl) ({
+                                        Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary)
+                                    }) else null
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             // ── Keyserver ───────────────────────────────────────────────────
             SectionHeader("Network")
 
@@ -159,15 +201,17 @@ fun SettingsScreen(filesDir: File, modifier: Modifier = Modifier) {
                             OutlinedButton(onClick = {
                                 scope.launch {
                                     try {
+                                        val dest = AppLogger.exportAllLogs(
+                                            android.os.Environment.getExternalStoragePublicDirectory(
+                                                android.os.Environment.DIRECTORY_DOWNLOADS))
                                         val src = File(filesDir, "logs/app.log")
-                                        val dst = File("/sdcard/Download/gpgverifier-app.log")
-                                        if (src.exists()) {
-                                            src.copyTo(dst, overwrite = true)
-                                            AppLogger.i("Log exported to ${dst.absolutePath} (${dst.length()} bytes)")
-                                            logSize = src.length()
-                                            snack.showSnackbar("✓ Log exported to Downloads")
-                                        } else snack.showSnackbar("✗ Log file not found")
-                                    } catch (e: Exception) { snack.showSnackbar("✗ ${e.message}") }
+                                        logSize = if (src.exists()) src.length() else 0L
+                                        AppLogger.i("Full log exported: ${dest.name} (${dest.length()}B)", AppLogger.TAG_UI)
+                                        snack.showSnackbar("✓ Exported to Downloads/${dest.name}")
+                                    } catch (e: Exception) {
+                                        AppLogger.ex("exportLog", e, AppLogger.TAG_UI)
+                                        snack.showSnackbar("✗ ${e.message}")
+                                    }
                                 }
                             }) { Text("Export") }
 
@@ -175,10 +219,13 @@ fun SettingsScreen(filesDir: File, modifier: Modifier = Modifier) {
                                 onClick = {
                                     scope.launch {
                                         try {
-                                            val logFile = File(filesDir, "logs/app.log")
-                                            if (logFile.exists()) { logFile.writeText(""); logSize = 0L }
+                                            AppLogger.clearLogs()
+                                            logSize = 0L
                                             snack.showSnackbar("✓ Log cleared")
-                                        } catch (e: Exception) { snack.showSnackbar("✗ ${e.message}") }
+                                        } catch (e: Exception) {
+                                            AppLogger.ex("clearLogs", e, AppLogger.TAG_UI)
+                                            snack.showSnackbar("✗ ${e.message}")
+                                        }
                                     }
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)

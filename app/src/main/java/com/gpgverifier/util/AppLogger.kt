@@ -34,6 +34,10 @@ object AppLogger {
     private const val MAX_ROTATIONS     = 5
     private const val MEMORY_BUFFER_CAP = 500
 
+    enum class Level { VERBOSE, DEBUG, INFO, WARN, ERROR }
+    @Volatile var minLevel: Level = Level.DEBUG
+
+
     // ── Internal state ────────────────────────────────────────────────────────
     private val sessionId = UUID.randomUUID().toString().takeLast(8).uppercase()
     private val logIndex  = AtomicLong(0)
@@ -108,6 +112,21 @@ object AppLogger {
         logFile?.takeIf { it.exists() }?.readText() ?: "(log is empty)"
     }
 
+    fun exportAllLogs(destDir: File): File {
+        val dest = File(destDir, "gpgverifier-full.log")
+        synchronized(fileLock) {
+            dest.delete()
+            val parent = logFile?.parentFile ?: return dest
+            // Append rotated logs oldest first, then current
+            for (i in MAX_ROTATIONS downTo 1) {
+                val f = File(parent, "app.log.$i")
+                if (f.exists()) dest.appendText(f.readText())
+            }
+            logFile?.takeIf { it.exists() }?.let { dest.appendText(it.readText()) }
+        }
+        return dest
+    }
+
     fun readMemoryBuffer(n: Int = MEMORY_BUFFER_CAP): String = synchronized(memBuffer) {
         val buf = memBuffer.toList()
         val from = (buf.size - n).coerceAtLeast(0)
@@ -123,6 +142,15 @@ object AppLogger {
     // ── Core emit ─────────────────────────────────────────────────────────────
 
     private fun emit(level: String, message: String, tag: String) {
+        val lvl = when (level) {
+            "VERBOSE" -> Level.VERBOSE
+            "DEBUG"   -> Level.DEBUG
+            "INFO"    -> Level.INFO
+            "WARN"    -> Level.WARN
+            "ERROR"   -> Level.ERROR
+            else      -> Level.DEBUG
+        }
+        if (lvl < minLevel) return
         val index  = logIndex.incrementAndGet()
         val ts     = fmt.format(Date())
         val thread = Thread.currentThread().let { "[${it.name}/${it.id}]" }
