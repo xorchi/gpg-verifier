@@ -140,7 +140,7 @@ fun SignTab(repo: KeyringRepository, scope: kotlinx.coroutines.CoroutineScope, s
 
             Text(stringResource(R.string.field_hash_algorithm), style = MaterialTheme.typography.labelMedium)
             var hashExpanded by remember { mutableStateOf(false) }
-            val hashOptions = listOf(HashAlgorithm.SHA256 to "SHA-256", HashAlgorithm.SHA384 to "SHA-384", HashAlgorithm.SHA512 to "SHA-512")
+            val hashOptions = listOf<Pair<HashAlgorithm, String>>(HashAlgorithm.SHA256 to "SHA-256", HashAlgorithm.SHA384 to "SHA-384", HashAlgorithm.SHA512 to "SHA-512")
             ExposedDropdownMenuBox(expanded = hashExpanded, onExpandedChange = { hashExpanded = it }) {
                 OutlinedTextField(
                     value = hashOptions.first { it.first == hashAlgorithm }.second,

@@ -33,6 +33,7 @@ enum class SignMode {
 
 enum class HashAlgorithm(val tag: Int, val headerName: String) {
     SHA256(org.bouncycastle.bcpg.HashAlgorithmTags.SHA256, "SHA256"),
+    SHA384(org.bouncycastle.bcpg.HashAlgorithmTags.SHA384, "SHA384"),
     SHA512(org.bouncycastle.bcpg.HashAlgorithmTags.SHA512, "SHA512")
 }
 
