@@ -211,13 +211,6 @@ fun SettingsScreen(filesDir: File, modifier: Modifier = Modifier) {
     }
 }
 
-@Composable
-private fun SectionHeader(title: String) {
-    Text(title,
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(top = 8.dp, bottom = 2.dp))
-}
 
 @Composable
 private fun SettingsCard(content: @Composable () -> Unit) {
