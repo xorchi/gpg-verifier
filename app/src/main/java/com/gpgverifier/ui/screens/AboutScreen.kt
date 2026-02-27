@@ -147,8 +147,9 @@ fun AboutScreen(modifier: Modifier = Modifier) {
                             val badge = if (index == 0) "Current" else null
                             val items = body.lines()
                                 .map { it.trimStart('-', '*', '#', ' ').trim() }
-                                .filter { it.isNotBlank() && !it.startsWith("```") && !it.startsWith("##") }
-                                .take(20)
+                                .map { it.replace("**", "").replace(Regex("`(.+?)`"), "$1") }
+                                .filter { it.isNotBlank() && !it.startsWith("#") && !it.startsWith("```") && it.length > 15 }
+                                .take(15)
                             ChangelogEntry(tag, badge, items)
                         }
                     }
