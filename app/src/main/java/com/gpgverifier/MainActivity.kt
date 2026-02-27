@@ -144,17 +144,17 @@ fun MainScaffold(filesDir: File) {
                             DropdownMenuItem(
                                 text = { Text("Settings") },
                                 leadingIcon = { Icon(Icons.Default.Settings, null) },
-                                onClick = { menuExpanded = false; showSettings = true }
+                                onClick = { menuExpanded = false; showSettings = true; AppLogger.d("nav: overlay=Settings", AppLogger.TAG_UI) }
                             )
                             DropdownMenuItem(
                                 text = { Text("Appearance") },
                                 leadingIcon = { Icon(Icons.Default.Palette, null) },
-                                onClick = { menuExpanded = false; showAppearance = true }
+                                onClick = { menuExpanded = false; showAppearance = true; AppLogger.d("nav: overlay=Appearance", AppLogger.TAG_UI) }
                             )
                             DropdownMenuItem(
                                 text = { Text("About") },
                                 leadingIcon = { Icon(Icons.Default.Info, null) },
-                                onClick = { menuExpanded = false; showAbout = true }
+                                onClick = { menuExpanded = false; showAbout = true; AppLogger.d("nav: overlay=About", AppLogger.TAG_UI) }
                             )
                             HorizontalDivider()
                             DropdownMenuItem(
@@ -189,6 +189,7 @@ fun MainScaffold(filesDir: File) {
                     NavigationBarItem(
                         selected  = selectedTab == index,
                         onClick   = {
+                            AppLogger.d("nav: tab=${item.label}", AppLogger.TAG_UI)
                             selectedTab = index
                             showSettings   = false
                             showAppearance = false

@@ -80,6 +80,7 @@ fun SettingsScreen(filesDir: File, modifier: Modifier = Modifier) {
                                     onClick = {
                                         hashAlgo = algo
                                         AppPreferences.set(context, AppPreferences.KEY_HASH_ALGO, algo)
+                                        AppLogger.d("Settings: hashAlgo=$algo", AppLogger.TAG_UI)
                                         hashMenuExpanded = false
                                     },
                                     leadingIcon = if (hashAlgo == algo) ({
@@ -111,6 +112,7 @@ fun SettingsScreen(filesDir: File, modifier: Modifier = Modifier) {
                                     IconButton(onClick = {
                                         keyserver = keyserverDraft
                                         AppPreferences.set(context, AppPreferences.KEY_KEYSERVER, keyserverDraft)
+                                        AppLogger.d("Settings: keyserver=$keyserverDraft", AppLogger.TAG_UI)
                                         keyserverEditing = false
                                     }) { Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) }
                                     IconButton(onClick = {

@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gpgverifier.prefs.AppPreferences
+import com.gpgverifier.util.AppLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -50,6 +51,7 @@ fun TextViewerScreen(modifier: Modifier = Modifier) {
         fileUri = uri
         scope.launch {
             isLoading = true; error = null; content = ""
+            AppLogger.d("TextViewer: opening uri=$uri", AppLogger.TAG_UI)
             try {
                 val result = withContext(Dispatchers.IO) {
                     val cr = context.contentResolver
@@ -66,8 +68,10 @@ fun TextViewerScreen(modifier: Modifier = Modifier) {
                     }
                     String(bytes, Charsets.UTF_8)
                 }
+                AppLogger.d("TextViewer: loaded file=$fileName size=${fileSize}B lines=${result.lines().size}", AppLogger.TAG_UI)
                 content = result
             } catch (e: Exception) {
+                AppLogger.e("TextViewer: failed to read file — ${e.message}", AppLogger.TAG_UI)
                 error = e.message ?: "Failed to read file"
             }
             isLoading = false
