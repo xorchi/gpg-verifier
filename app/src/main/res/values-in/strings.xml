@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">GPG Verifier</string>
+
+    <!-- Navigation -->
+    <string name="nav_verify">Verifikasi</string>
+    <string name="nav_sign">Tanda Tangan</string>
+    <string name="nav_decrypt">Dekripsi</string>
+    <string name="nav_keys">Kunci</string>
+    <string name="nav_viewer">Penampil Teks</string>
+    <string name="nav_settings">Pengaturan</string>
+    <string name="nav_appearance">Tampilan</string>
+    <string name="nav_about">Tentang</string>
+    <string name="nav_export_log">Ekspor Log</string>
+
+    <!-- Common actions -->
+    <string name="action_apply">Terapkan</string>
+    <string name="action_cancel">Batal</string>
+    <string name="action_clear">Hapus</string>
+    <string name="action_delete">Hapus</string>
+    <string name="action_export">Ekspor</string>
+    <string name="action_generate">Buat</string>
+    <string name="action_import">Impor</string>
+    <string name="action_save">Simpan</string>
+    <string name="action_share">Bagikan</string>
+    <string name="action_upload">Unggah</string>
+    <string name="action_reset_settings">Reset Semua Pengaturan</string>
+
+    <!-- Verify screen -->
+    <string name="verify_title">Verifikasi Tanda Tangan</string>
+    <string name="verify_button">Verifikasi Tanda Tangan</string>
+    <string name="verifying">Memverifikasi…</string>
+
+    <!-- Sign screen -->
+    <string name="sign_title">Tanda Tangani File</string>
+    <string name="sign_button">Tanda Tangani</string>
+    <string name="sign_mode">Mode Tanda Tangan</string>
+    <string name="sign_signing_key">Kunci Penanda Tangan</string>
+
+    <!-- Encrypt screen -->
+    <string name="encrypt_title_asymmetric">Enkripsi File (Asimetris)</string>
+    <string name="encrypt_title_symmetric">Enkripsi File (Simetris)</string>
+    <string name="encrypt_button_asymmetric">Enkripsi</string>
+    <string name="encrypt_button_symmetric">Enkripsi (Simetris)</string>
+    <string name="encrypt_desc_asymmetric">Enkripsi menggunakan kunci publik penerima.</string>
+    <string name="encrypt_desc_symmetric">Enkripsi dengan passphrase — tidak perlu pasangan kunci.</string>
+    <string name="encrypt_recipients">Penerima (pilih satu atau lebih)</string>
+    <string name="encrypt_no_pub_keys">Tidak ada kunci publik. Impor kunci penerima terlebih dahulu.</string>
+
+    <!-- Decrypt screen -->
+    <string name="decrypt_title">Dekripsi File</string>
+    <string name="decrypt_success">Dekripsi berhasil</string>
+
+    <!-- Keys screen -->
+    <string name="keys_generate_title">Buat Pasangan Kunci</string>
+    <string name="keys_no_keys">Tidak ada kunci</string>
+    <string name="keys_no_pub_keys">Tidak ada kunci publik. Impor kunci penerima terlebih dahulu.</string>
+    <string name="keys_no_sec_keys">Tidak ada kunci rahasia. Buat atau impor kunci terlebih dahulu.</string>
+    <string name="keys_import_keyserver">Impor dari Keyserver</string>
+    <string name="keys_upload_keyserver">Unggah ke Keyserver</string>
+    <string name="keys_delete_title">Hapus Kunci?</string>
+    <string name="keys_delete_confirm">Ini akan menghapus kunci secara permanen dari keyring Anda.</string>
+    <string name="keys_export_secret_title">Ekspor Kunci Rahasia?</string>
+    <string name="keys_copy_pub">Salin Pub</string>
+    <string name="keys_copy_sec">Salin Kunci Rahasia</string>
+    <string name="keys_save_pub">Simpan Pub</string>
+    <string name="keys_save_priv">Simpan Priv</string>
+    <string name="keys_backup_all_pub">Backup Semua Pub</string>
+    <string name="keys_backup_all_priv">Backup Semua Priv</string>
+    <string name="keys_copy_anyway">Salin Tetap</string>
+    <string name="keys_set_trust">Atur Tingkat Kepercayaan</string>
+    <string name="keys_trust">Kepercayaan</string>
+    <string name="keys_empty_hint">Impor atau buat kunci untuk memulai</string>
+
+    <!-- Form fields -->
+    <string name="field_name">Nama *</string>
+    <string name="field_email">Email *</string>
+    <string name="field_passphrase">Passphrase</string>
+    <string name="field_passphrase_required">Passphrase *</string>
+    <string name="field_passphrase_confirm">Konfirmasi Passphrase</string>
+    <string name="field_passphrase_confirm_required">Konfirmasi Passphrase *</string>
+    <string name="field_passphrase_mismatch">Passphrase tidak cocok</string>
+    <string name="field_comment">Komentar (opsional)</string>
+    <string name="field_key_size">Ukuran Kunci</string>
+    <string name="field_expiry">Kedaluwarsa (hari, 0=tidak pernah)</string>
+    <string name="field_hash">Hash</string>
+    <string name="field_hash_algorithm">Algoritma Hash</string>
+    <string name="field_mode">Mode</string>
+    <string name="field_keyserver">Keyserver</string>
+    <string name="field_keyserver_url">URL Keyserver</string>
+    <string name="field_key_id">ID Kunci atau Sidik Jari</string>
+    <string name="field_input_file">File Input</string>
+    <string name="field_required">Wajib diisi</string>
+
+    <!-- Settings screen -->
+    <string name="settings_title">Pengaturan</string>
+    <string name="settings_default_hash">Algoritma Hash Default</string>
+    <string name="settings_hash_desc">Digunakan untuk operasi penandatanganan</string>
+    <string name="settings_default_keyserver">Keyserver Default</string>
+    <string name="settings_min_log_level">Level Log Minimum</string>
+    <string name="settings_log_level_desc">Lebih rendah = lebih detail, lebih tinggi = lebih sedikit noise</string>
+    <string name="settings_app_log">Log Aplikasi</string>
+
+    <!-- Appearance screen -->
+    <string name="appearance_title">Tampilan</string>
+
+    <!-- About screen -->
+    <string name="about_title">Tentang</string>
+    <string name="about_github_repo">Repositori GitHub</string>
+    <string name="about_github_url">github.com/xorchi/gpg-verifier</string>
+    <string name="about_open_source">Sumber terbuka — kontribusi disambut</string>
+
+    <!-- Text Viewer -->
+    <string name="viewer_title">Penampil Teks</string>
+    <string name="viewer_open_hint">Ketuk untuk membuka file</string>
+
+    <!-- Dynamic templates -->
+    <string name="log_size_kb">%dKB tersimpan</string>
+    <string name="file_size_kb">%dKB</string>
+    <string name="file_stats">%d baris · %dB</string>
+    <string name="build_version">Build %d</string>
+    <string name="api_level">API %d</string>
+    <string name="app_version">v%s</string>
+    <string name="cache_path">Cache: %s</string>
+    <string name="key_id_prefix">0x%s</string>
+</resources>

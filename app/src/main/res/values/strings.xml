@@ -1,4 +1,126 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">GPG Verifier</string>
+
+    <!-- Navigation -->
+    <string name="nav_verify">Verify</string>
+    <string name="nav_sign">Sign</string>
+    <string name="nav_decrypt">Decrypt</string>
+    <string name="nav_keys">Keys</string>
+    <string name="nav_viewer">Text Viewer</string>
+    <string name="nav_settings">Settings</string>
+    <string name="nav_appearance">Appearance</string>
+    <string name="nav_about">About</string>
+    <string name="nav_export_log">Export Log</string>
+
+    <!-- Common actions -->
+    <string name="action_apply">Apply</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_clear">Clear</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_export">Export</string>
+    <string name="action_generate">Generate</string>
+    <string name="action_import">Import</string>
+    <string name="action_save">Save</string>
+    <string name="action_share">Share</string>
+    <string name="action_upload">Upload</string>
+    <string name="action_reset_settings">Reset All Settings</string>
+
+    <!-- Verify screen -->
+    <string name="verify_title">Verify Signature</string>
+    <string name="verify_button">Verify Signature</string>
+    <string name="verifying">Verifying…</string>
+
+    <!-- Sign screen -->
+    <string name="sign_title">Sign File</string>
+    <string name="sign_button">Sign</string>
+    <string name="sign_mode">Signature Mode</string>
+    <string name="sign_signing_key">Signing Key</string>
+
+    <!-- Encrypt screen -->
+    <string name="encrypt_title_asymmetric">Encrypt File (Asymmetric)</string>
+    <string name="encrypt_title_symmetric">Encrypt File (Symmetric)</string>
+    <string name="encrypt_button_asymmetric">Encrypt</string>
+    <string name="encrypt_button_symmetric">Encrypt (Symmetric)</string>
+    <string name="encrypt_desc_asymmetric">Encrypt using recipient\'s public key.</string>
+    <string name="encrypt_desc_symmetric">Encrypt with passphrase — no key pair required.</string>
+    <string name="encrypt_recipients">Recipients (select one or more)</string>
+    <string name="encrypt_no_pub_keys">No public keys found. Import recipient keys first.</string>
+
+    <!-- Decrypt screen -->
+    <string name="decrypt_title">Decrypt File</string>
+    <string name="decrypt_success">Decryption successful</string>
+
+    <!-- Keys screen -->
+    <string name="keys_generate_title">Generate Key Pair</string>
+    <string name="keys_no_keys">No keys found</string>
+    <string name="keys_no_pub_keys">No public keys found. Import recipient keys first.</string>
+    <string name="keys_no_sec_keys">No secret keys found. Generate or import a key first.</string>
+    <string name="keys_import_keyserver">Import from Keyserver</string>
+    <string name="keys_upload_keyserver">Upload to Keyserver</string>
+    <string name="keys_delete_title">Delete Key?</string>
+    <string name="keys_delete_confirm">This will permanently remove the key from your keyring.</string>
+    <string name="keys_export_secret_title">Export Secret Key?</string>
+    <string name="keys_copy_pub">Copy Pub</string>
+    <string name="keys_copy_sec">Copy Sec Key</string>
+    <string name="keys_save_pub">Save Pub</string>
+    <string name="keys_save_priv">Save Priv</string>
+    <string name="keys_backup_all_pub">Backup All Pub</string>
+    <string name="keys_backup_all_priv">Backup All Priv</string>
+    <string name="keys_copy_anyway">Copy Anyway</string>
+    <string name="keys_set_trust">Set Trust Level</string>
+    <string name="keys_trust">Trust</string>
+    <string name="keys_empty_hint">Import or generate a key to get started</string>
+
+    <!-- Form fields -->
+    <string name="field_name">Name *</string>
+    <string name="field_email">Email *</string>
+    <string name="field_passphrase">Passphrase</string>
+    <string name="field_passphrase_required">Passphrase *</string>
+    <string name="field_passphrase_confirm">Confirm Passphrase</string>
+    <string name="field_passphrase_confirm_required">Confirm Passphrase *</string>
+    <string name="field_passphrase_mismatch">Passphrase does not match</string>
+    <string name="field_comment">Comment (optional)</string>
+    <string name="field_key_size">Key Size</string>
+    <string name="field_expiry">Expiry (days, 0=never)</string>
+    <string name="field_hash">Hash</string>
+    <string name="field_hash_algorithm">Hash Algorithm</string>
+    <string name="field_mode">Mode</string>
+    <string name="field_keyserver">Keyserver</string>
+    <string name="field_keyserver_url">Keyserver URL</string>
+    <string name="field_key_id">Key ID or Fingerprint</string>
+    <string name="field_input_file">Input File</string>
+    <string name="field_required">Required</string>
+
+    <!-- Settings screen -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_default_hash">Default Hash Algorithm</string>
+    <string name="settings_hash_desc">Used for signing operations</string>
+    <string name="settings_default_keyserver">Default Keyserver</string>
+    <string name="settings_min_log_level">Minimum Log Level</string>
+    <string name="settings_log_level_desc">Lower = more detail, higher = less noise</string>
+    <string name="settings_app_log">App Log</string>
+
+    <!-- Appearance screen -->
+    <string name="appearance_title">Appearance</string>
+
+    <!-- About screen -->
+    <string name="about_title">About</string>
+    <string name="about_github_repo">GitHub Repository</string>
+    <string name="about_github_url">github.com/xorchi/gpg-verifier</string>
+    <string name="about_open_source">Open source — contributions welcome</string>
+
+    <!-- Text Viewer -->
+    <string name="viewer_title">Text Viewer</string>
+    <string name="viewer_open_hint">Tap to open file</string>
+
+    <!-- Dynamic templates -->
+    <string name="log_size_kb">%dKB stored</string>
+    <string name="file_size_kb">%dKB</string>
+    <string name="file_stats">%d lines · %dB</string>
+    <string name="build_version">Build %d</string>
+    <string name="api_level">API %d</string>
+    <string name="app_version">v%s</string>
+    <string name="cache_path">Cache: %s</string>
+    <string name="key_id_prefix">0x%s</string>
 </resources>
