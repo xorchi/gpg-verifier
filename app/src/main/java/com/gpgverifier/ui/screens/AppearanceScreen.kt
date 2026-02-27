@@ -216,5 +216,32 @@ fun AppearanceScreen(
                 }
             }
         }
+
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(
+                onClick = {
+                    AppPreferences.set(context, AppPreferences.KEY_THEME, AppPreferences.DEFAULT_THEME)
+                    AppPreferences.set(context, AppPreferences.KEY_ACCENT_COLOR, AppPreferences.DEFAULT_ACCENT_COLOR)
+                    AppPreferences.set(context, AppPreferences.KEY_FONT_SIZE, AppPreferences.DEFAULT_FONT_SIZE)
+                    AppPreferences.set(context, AppPreferences.KEY_LAYOUT, AppPreferences.DEFAULT_LAYOUT)
+                    onThemeChange(AppPreferences.DEFAULT_THEME)
+                    onAccentChange(AppPreferences.DEFAULT_ACCENT_COLOR)
+                },
+                modifier = Modifier.weight(1f)
+            ) { Text(stringResource(R.string.action_cancel)) }
+            Button(
+                onClick = { /* prefs sudah disimpan real-time saat user memilih */ },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) {
+                Icon(Icons.Default.Check, null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(stringResource(R.string.action_apply))
+            }
+        }
     }
 }

@@ -98,21 +98,16 @@ fun SettingsScreen(filesDir: File, modifier: Modifier = Modifier) {
 
             // ── Log Level ───────────────────────────────────────────────────
             SectionHeader("Log Level")
+            var levelMenuExpanded by remember { mutableStateOf(false) }
+            var currentLevel by remember { mutableStateOf(AppLogger.minLevel.name) }
             SettingsCard {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(stringResource(R.string.settings_min_log_level), style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium)
-                        Text(stringResource(R.string.settings_log_level_desc),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-                    }
-                    var levelMenuExpanded by remember { mutableStateOf(false) }
-                    var currentLevel by remember { mutableStateOf(AppLogger.minLevel.name) }
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.settings_min_log_level),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.settings_log_level_desc),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                     Box {
                         OutlinedButton(onClick = { levelMenuExpanded = true }) {
                             Text(currentLevel)
@@ -221,7 +216,7 @@ fun SettingsScreen(filesDir: File, modifier: Modifier = Modifier) {
                                 }
                             }) { Text(stringResource(R.string.nav_export_log)) }
 
-                            Button(
+                            OutlinedButton(
                                 onClick = {
                                     scope.launch {
                                         try {
@@ -234,7 +229,9 @@ fun SettingsScreen(filesDir: File, modifier: Modifier = Modifier) {
                                         }
                                     }
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                                border = ButtonDefaults.outlinedButtonBorder.copy(
+                                    brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.error))
                             ) { Text(stringResource(R.string.action_clear)) }
                         }
                     }
@@ -261,6 +258,17 @@ fun SettingsScreen(filesDir: File, modifier: Modifier = Modifier) {
                 Icon(Icons.Default.RestartAlt, null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.action_reset_settings))
+            }
+
+            Spacer(Modifier.height(8.dp))
+            Button(
+                onClick = { scope.launch { snack.showSnackbar("✓ Settings saved") } },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) {
+                Icon(Icons.Default.Check, null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.action_apply))
             }
         }
     }

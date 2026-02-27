@@ -116,11 +116,11 @@ fun AboutScreen(modifier: Modifier = Modifier) {
         SectionHeader("Licenses")
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                LicenseRow("Bouncy Castle", "MIT License", "bouncycastle.org")
+                LicenseRow("Bouncy Castle", "MIT License", "bouncycastle.org", "https://www.bouncycastle.org/licence.html")
                 HorizontalDivider()
-                LicenseRow("Jetpack Compose", "Apache 2.0", "developer.android.com")
+                LicenseRow("Jetpack Compose", "Apache 2.0", "developer.android.com", "https://www.apache.org/licenses/LICENSE-2.0")
                 HorizontalDivider()
-                LicenseRow("Material3", "Apache 2.0", "material.io")
+                LicenseRow("Material3", "Apache 2.0", "material.io", "https://www.apache.org/licenses/LICENSE-2.0")
             }
         }
 
@@ -165,17 +165,23 @@ private fun ChangelogEntry(version: String, badge: String?, items: List<String>)
 }
 
 @Composable
-private fun LicenseRow(name: String, license: String, url: String) {
+private fun LicenseRow(name: String, license: String, url: String, licenseUrl: String) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             Text(name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
             Text(url, style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
         }
-        AssistChip(onClick = {}, label = { Text(license, fontSize = 11.sp) })
+        AssistChip(
+            onClick = {
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(licenseUrl)))
+            },
+            label = { Text(license, fontSize = 11.sp) }
+        )
     }
 }

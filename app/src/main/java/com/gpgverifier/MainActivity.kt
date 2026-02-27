@@ -58,6 +58,7 @@ import com.gpgverifier.ui.screens.SettingsScreen
 import com.gpgverifier.ui.screens.SignEncryptScreen
 import com.gpgverifier.ui.screens.TextViewerScreen
 import com.gpgverifier.ui.screens.VerifyScreen
+import com.gpgverifier.prefs.AppPreferences
 import com.gpgverifier.ui.theme.GPGVerifierTheme
 import com.gpgverifier.util.AppLogger
 import kotlinx.coroutines.launch
@@ -85,7 +86,18 @@ class MainActivity : ComponentActivity() {
         AppLogger.i("App started — Build ${android.os.Build.VERSION.SDK_INT} device=${android.os.Build.MODEL}")
         checkAndRequestPermissions()
         enableEdgeToEdge()
-        setContent { GPGVerifierTheme { MainScaffold(filesDir) } }
+        setContent {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            var theme  by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(AppPreferences.get(applicationContext, AppPreferences.KEY_THEME, AppPreferences.DEFAULT_THEME)) }
+            var accent by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(AppPreferences.get(applicationContext, AppPreferences.KEY_ACCENT_COLOR, AppPreferences.DEFAULT_ACCENT_COLOR)) }
+            GPGVerifierTheme(theme = theme, accent = accent) {
+                MainScaffold(
+                    filesDir      = filesDir,
+                    onThemeChange = { theme  = it },
+                    onAccentChange= { accent = it }
+                )
+            }
+        }
     }
 
     private fun checkAndRequestPermissions() {
@@ -120,7 +132,7 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScaffold(filesDir: File) {
+fun MainScaffold(filesDir: File, onThemeChange: (String) -> Unit, onAccentChange: (String) -> Unit) {
     var selectedTab    by remember { mutableIntStateOf(0) }
     val snackState     = remember { SnackbarHostState() }
     val scope          = rememberCoroutineScope()
@@ -184,8 +196,8 @@ fun MainScaffold(filesDir: File) {
             overlay == "settings"   -> SettingsScreen(filesDir = filesDir,
                                 modifier = Modifier.padding(innerPadding))
             overlay == "appearance" -> AppearanceScreen(
-                                onThemeChange  = { /* TODO: apply theme */ },
-                                onAccentChange = { /* TODO: apply accent */ },
+                                onThemeChange  = onThemeChange,
+                                onAccentChange = onAccentChange,
                                 modifier       = Modifier.padding(innerPadding))
             overlay == "about"      -> AboutScreen(modifier = Modifier.padding(innerPadding))
             else           -> when (selectedTab) {
