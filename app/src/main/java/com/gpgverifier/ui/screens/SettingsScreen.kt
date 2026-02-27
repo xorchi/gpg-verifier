@@ -1,5 +1,7 @@
 package com.gpgverifier.ui.screens
 
+import com.gpgverifier.R
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll

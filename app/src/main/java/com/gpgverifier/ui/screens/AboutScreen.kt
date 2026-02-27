@@ -1,5 +1,7 @@
 package com.gpgverifier.ui.screens
 
+import com.gpgverifier.R
+
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.*
