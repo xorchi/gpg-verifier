@@ -1279,9 +1279,9 @@ class GpgExecutor(private val context: Context) {
             val secArmor = armoredOut(out)
             secRing.encode(secArmor)
             secArmor.close()
-            val file = File(context.cacheDir, "${safeName}_priv.asc")
+            val file = saveToDownloads("${safeName}_priv.asc")
             file.writeBytes(out.toByteArray())
-            GpgOperationResult.Success(file.absolutePath)
+            GpgOperationResult.Success("Secret key saved: ${file.name}")
         } catch (e: Exception) {
             GpgOperationResult.Failure(e.message ?: "Export failed")
         }
@@ -1309,11 +1309,9 @@ class GpgExecutor(private val context: Context) {
             val armor = armoredOut(out)
             rings.forEach { it.encode(armor) }
             armor.close()
-            // Secret keys go to private cacheDir (never exposed to other apps).
-            // UI layer must use a share/save intent to let the user choose destination.
-            val file = File(context.cacheDir, "all-priv.asc")
+            val file = saveToDownloads("all-priv.asc")
             file.writeBytes(out.toByteArray())
-            GpgOperationResult.Success(file.absolutePath)
+            GpgOperationResult.Success("${rings.size} secret key(s) saved to ${file.name}")
         } catch (e: Exception) {
             GpgOperationResult.Failure(e.message ?: "Backup failed")
         }
