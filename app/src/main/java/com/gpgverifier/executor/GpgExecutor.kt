@@ -1374,7 +1374,8 @@ class GpgExecutor(private val context: Context) {
             // Pass 3: read signature list and verify
             val factory3 = nextFrom(innerBytes)
             factory3.nextObject() // skip OnePassSignatureList
-            factory3.nextObject() // skip LiteralData
+            // Drain LiteralData payload before reading next packet
+            (factory3.nextObject() as? PGPLiteralData)?.inputStream?.copyTo(java.io.OutputStream.nullOutputStream())
             val p3obj = factory3.nextObject()
             AppLogger.d("verifyEmbedded: pass3 obj=${p3obj?.javaClass?.simpleName}", AppLogger.TAG_CRYPTO)
             val sigList = p3obj as? PGPSignatureList
