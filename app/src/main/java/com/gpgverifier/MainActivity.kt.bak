@@ -21,14 +21,6 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.BugReport
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.outlined.Description
-import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.Palette
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.LockOpen
@@ -40,13 +32,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.gpgverifier.ui.screens.AboutScreen
-import com.gpgverifier.ui.screens.AppearanceScreen
 import com.gpgverifier.ui.screens.DecryptScreen
 import com.gpgverifier.ui.screens.KeyringScreen
-import com.gpgverifier.ui.screens.SettingsScreen
 import com.gpgverifier.ui.screens.SignEncryptScreen
-import com.gpgverifier.ui.screens.TextViewerScreen
 import com.gpgverifier.ui.screens.VerifyScreen
 import com.gpgverifier.ui.theme.GPGVerifierTheme
 import com.gpgverifier.util.AppLogger
@@ -60,14 +48,10 @@ data class NavItem(
 )
 
 val navItems = listOf(
-    NavItem("Verify",     Icons.Filled.Shield,      Icons.Outlined.Shield),
-    NavItem("Sign",       Icons.Filled.Lock,        Icons.Outlined.Lock),
-    NavItem("Decrypt",    Icons.Filled.LockOpen,    Icons.Outlined.LockOpen),
-    NavItem("Keys",       Icons.Filled.Key,         Icons.Outlined.Key),
-    NavItem("Viewer",     Icons.Filled.Description, Icons.Outlined.Description),
-    NavItem("Settings",   Icons.Filled.Settings,    Icons.Outlined.Settings),
-    NavItem("Appearance", Icons.Filled.Palette,     Icons.Outlined.Palette),
-    NavItem("About",      Icons.Filled.Info,        Icons.Outlined.Info),
+    NavItem("Verify",  Icons.Filled.Shield,   Icons.Outlined.Shield),
+    NavItem("Sign",    Icons.Filled.Lock,     Icons.Outlined.Lock),
+    NavItem("Decrypt", Icons.Filled.LockOpen, Icons.Outlined.LockOpen),
+    NavItem("Keys",    Icons.Filled.Key,      Icons.Outlined.Key)
 )
 
 class MainActivity : ComponentActivity() {
@@ -170,13 +154,6 @@ fun MainScaffold(filesDir: File) {
             1 -> SignEncryptScreen(modifier = Modifier.padding(innerPadding))
             2 -> DecryptScreen(modifier    = Modifier.padding(innerPadding))
             3 -> KeyringScreen(modifier    = Modifier.padding(innerPadding))
-            4 -> TextViewerScreen(modifier = Modifier.padding(innerPadding))
-            5 -> SettingsScreen(filesDir   = filesDir, modifier = Modifier.padding(innerPadding))
-            6 -> AppearanceScreen(
-                    onThemeChange  = { /* TODO: apply theme */ },
-                    onAccentChange = { /* TODO: apply accent */ },
-                    modifier       = Modifier.padding(innerPadding))
-            7 -> AboutScreen(modifier      = Modifier.padding(innerPadding))
         }
     }
 }
