@@ -191,7 +191,7 @@ fun MainScaffold(filesDir: File) {
                         onClick   = { selectedTab = index },
                         icon      = { Icon(if (selectedTab == index) item.selectedIcon else item.unselectedIcon,
                                          contentDescription = item.label) },
-                        label     = { Text(item.label) }
+                        label     = null
                     )
                 }
             }
