@@ -94,43 +94,6 @@ fun SettingsScreen(filesDir: File, modifier: Modifier = Modifier) {
                 }
             }
 
-            // ── Log Level ───────────────────────────────────────────────────
-            SectionHeader("Log Level")
-            var levelMenuExpanded by remember { mutableStateOf(false) }
-            var currentLevel by remember { mutableStateOf(AppLogger.minLevel.name) }
-            SettingsCard {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(stringResource(R.string.settings_min_log_level),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium)
-                    Text(stringResource(R.string.settings_log_level_desc),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-                    Box {
-                        OutlinedButton(onClick = { levelMenuExpanded = true }) {
-                            Text(currentLevel)
-                            Icon(Icons.Default.ArrowDropDown, null, modifier = Modifier.size(16.dp))
-                        }
-                        DropdownMenu(expanded = levelMenuExpanded, onDismissRequest = { levelMenuExpanded = false }) {
-                            listOf("DEBUG", "INFO", "WARN", "ERROR").forEach { lvl ->
-                                DropdownMenuItem(
-                                    text = { Text(lvl) },
-                                    onClick = {
-                                        AppLogger.minLevel = AppLogger.Level.valueOf(lvl)
-                                        currentLevel = lvl
-                                        AppLogger.i("Log level set to $lvl", AppLogger.TAG_UI)
-                                        levelMenuExpanded = false
-                                    },
-                                    leadingIcon = if (currentLevel == lvl) ({
-                                        Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary)
-                                    }) else null
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
             // ── Keyserver ───────────────────────────────────────────────────
             SectionHeader("Network")
 

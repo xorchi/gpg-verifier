@@ -90,13 +90,15 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val context = androidx.compose.ui.platform.LocalContext.current
-            var theme  by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(AppPreferences.get(applicationContext, AppPreferences.KEY_THEME, AppPreferences.DEFAULT_THEME)) }
-            var accent by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(AppPreferences.get(applicationContext, AppPreferences.KEY_ACCENT_COLOR, AppPreferences.DEFAULT_ACCENT_COLOR)) }
-            GPGVerifierTheme(theme = theme, accent = accent) {
+            var theme    by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(AppPreferences.get(applicationContext, AppPreferences.KEY_THEME, AppPreferences.DEFAULT_THEME)) }
+            var accent   by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(AppPreferences.get(applicationContext, AppPreferences.KEY_ACCENT_COLOR, AppPreferences.DEFAULT_ACCENT_COLOR)) }
+            var fontSize by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(AppPreferences.get(applicationContext, AppPreferences.KEY_FONT_SIZE, AppPreferences.DEFAULT_FONT_SIZE)) }
+            GPGVerifierTheme(theme = theme, accent = accent, fontSize = fontSize) {
                 MainScaffold(
-                    filesDir      = filesDir,
-                    onThemeChange = { theme  = it },
-                    onAccentChange= { accent = it }
+                    filesDir       = filesDir,
+                    onThemeChange  = { theme    = it },
+                    onAccentChange = { accent   = it },
+                    onFontSizeChange = { fontSize = it }
                 )
             }
         }
@@ -134,7 +136,7 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScaffold(filesDir: File, onThemeChange: (String) -> Unit, onAccentChange: (String) -> Unit) {
+fun MainScaffold(filesDir: File, onThemeChange: (String) -> Unit, onAccentChange: (String) -> Unit, onFontSizeChange: (String) -> Unit) {
     var selectedTab    by remember { mutableIntStateOf(0) }
     val snackState     = remember { SnackbarHostState() }
     val scope          = rememberCoroutineScope()
@@ -203,9 +205,10 @@ fun MainScaffold(filesDir: File, onThemeChange: (String) -> Unit, onAccentChange
             overlay == "settings"   -> SettingsScreen(filesDir = filesDir,
                                 modifier = Modifier.padding(innerPadding))
             overlay == "appearance" -> AppearanceScreen(
-                                onThemeChange  = onThemeChange,
-                                onAccentChange = onAccentChange,
-                                modifier       = Modifier.padding(innerPadding))
+                                onThemeChange    = onThemeChange,
+                                onAccentChange   = onAccentChange,
+                                onFontSizeChange = onFontSizeChange,
+                                modifier         = Modifier.padding(innerPadding))
             overlay == "about"      -> AboutScreen(modifier = Modifier.padding(innerPadding))
             overlay == "logs"       -> LogViewerScreen(modifier = Modifier.padding(innerPadding))
             else           -> when (selectedTab) {

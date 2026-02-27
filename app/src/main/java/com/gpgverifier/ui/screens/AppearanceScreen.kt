@@ -49,6 +49,7 @@ val ACCENT_COLORS = listOf(
 fun AppearanceScreen(
     onThemeChange: (String) -> Unit,
     onAccentChange: (String) -> Unit,
+    onFontSizeChange: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context     = LocalContext.current
@@ -183,6 +184,7 @@ fun AppearanceScreen(
                         RadioButton(selected = fontSize == key, onClick = {
                             fontSize = key
                             AppPreferences.set(context, AppPreferences.KEY_FONT_SIZE, key)
+                            onFontSizeChange(key)
                         })
                     }
                 }
@@ -237,13 +239,13 @@ fun AppearanceScreen(
                 modifier = Modifier.weight(1f)
             ) { Text(stringResource(R.string.action_cancel)) }
             Button(
-                onClick = { /* prefs sudah disimpan real-time saat user memilih */ },
+                onClick = { /* changes applied in real-time */ },
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
                 Icon(Icons.Default.Check, null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text(stringResource(R.string.action_apply))
+                Text("Done")
             }
         }
     }
