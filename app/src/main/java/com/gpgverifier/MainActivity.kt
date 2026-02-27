@@ -21,7 +21,6 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.foundation.layout.Box
-import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Palette
@@ -157,28 +156,7 @@ fun MainScaffold(filesDir: File) {
                                 leadingIcon = { Icon(Icons.Default.Info, null) },
                                 onClick = { menuExpanded = false; showAbout = true; AppLogger.d("nav: overlay=About", AppLogger.TAG_UI) }
                             )
-                            HorizontalDivider()
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.nav_export_log)) },
-                                leadingIcon = { Icon(Icons.Default.BugReport, null) },
-                                onClick = {
-                                    menuExpanded = false
-                                    scope.launch {
-                                        try {
-                                            val src = File(filesDir, "logs/app.log")
-                                            val dst = File("/sdcard/Download/gpgverifier-app.log")
-                                            if (src.exists()) {
-                                                src.copyTo(dst, overwrite = true)
-                                                AppLogger.i("Log exported to ${dst.absolutePath} (${dst.length()} bytes)")
-                                                snackState.showSnackbar("✓ Log exported to Downloads")
-                                            } else snackState.showSnackbar("✗ Log file not found")
-                                        } catch (e: Exception) {
-                                            AppLogger.ex("exportLog", e)
-                                            snackState.showSnackbar("✗ Export failed: ${e.message}")
-                                        }
-                                    }
-                                }
-                            )
+
                         }
                     }
                 }

@@ -197,6 +197,9 @@ fun SettingsScreen(filesDir: File, modifier: Modifier = Modifier) {
                                 fontWeight = FontWeight.Medium)
                             Text(stringResource(R.string.log_size_kb, (logSize / 1024).toInt())), style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                            Text("app.log + rotated logs",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(onClick = {
@@ -214,7 +217,7 @@ fun SettingsScreen(filesDir: File, modifier: Modifier = Modifier) {
                                         snack.showSnackbar("✗ ${e.message}")
                                     }
                                 }
-                            }) { Text(stringResource(R.string.action_export)) }
+                            }) { Text(stringResource(R.string.nav_export_log)) }
 
                             Button(
                                 onClick = {
