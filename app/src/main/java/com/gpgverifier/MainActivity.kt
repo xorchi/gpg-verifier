@@ -60,14 +60,11 @@ data class NavItem(
 )
 
 val navItems = listOf(
-    NavItem("Verify",     Icons.Filled.Shield,      Icons.Outlined.Shield),
-    NavItem("Sign",       Icons.Filled.Lock,        Icons.Outlined.Lock),
-    NavItem("Decrypt",    Icons.Filled.LockOpen,    Icons.Outlined.LockOpen),
-    NavItem("Keys",       Icons.Filled.Key,         Icons.Outlined.Key),
-    NavItem("Viewer",     Icons.Filled.Description, Icons.Outlined.Description),
-    NavItem("Settings",   Icons.Filled.Settings,    Icons.Outlined.Settings),
-    NavItem("Appearance", Icons.Filled.Palette,     Icons.Outlined.Palette),
-    NavItem("About",      Icons.Filled.Info,        Icons.Outlined.Info),
+    NavItem("Verify",  Icons.Filled.Shield,      Icons.Outlined.Shield),
+    NavItem("Sign",    Icons.Filled.Lock,        Icons.Outlined.Lock),
+    NavItem("Decrypt", Icons.Filled.LockOpen,    Icons.Outlined.LockOpen),
+    NavItem("Keys",    Icons.Filled.Key,         Icons.Outlined.Key),
+    NavItem("Viewer",  Icons.Filled.Description, Icons.Outlined.Description),
 )
 
 class MainActivity : ComponentActivity() {
@@ -114,9 +111,13 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScaffold(filesDir: File) {
-    var selectedTab by remember { mutableIntStateOf(0) }
-    val snackState  = remember { SnackbarHostState() }
-    val scope       = rememberCoroutineScope()
+    var selectedTab    by remember { mutableIntStateOf(0) }
+    val snackState     = remember { SnackbarHostState() }
+    val scope          = rememberCoroutineScope()
+    var menuExpanded   by remember { mutableStateOf(false) }
+    var showSettings   by remember { mutableStateOf(false) }
+    var showAppearance by remember { mutableStateOf(false) }
+    var showAbout      by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -127,26 +128,49 @@ fun MainScaffold(filesDir: File) {
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface),
                 actions = {
-                    // Export log button — copies app.log to /sdcard/Download/
-                    IconButton(onClick = {
-                        scope.launch {
-                            try {
-                                val src = File(filesDir, "logs/app.log")
-                                val dst = File("/sdcard/Download/gpgverifier-app.log")
-                                if (src.exists()) {
-                                    src.copyTo(dst, overwrite = true)
-                                    AppLogger.i("Log exported to ${dst.absolutePath} (${dst.length()} bytes)")
-                                    snackState.showSnackbar("✓ Log exported to Download/gpgverifier-app.log")
-                                } else {
-                                    snackState.showSnackbar("✗ Log file does not exist yet")
-                                }
-                            } catch (e: Exception) {
-                                AppLogger.ex("exportLog", e)
-                                snackState.showSnackbar("✗ Log export failed: ${e.message}")
-                            }
+                    Box {
+                        IconButton(onClick = { menuExpanded = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "Menu")
                         }
-                    }) {
-                        Icon(Icons.Default.BugReport, contentDescription = "Export Log")
+                        DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Settings") },
+                                leadingIcon = { Icon(Icons.Default.Settings, null) },
+                                onClick = { menuExpanded = false; showSettings = true }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Appearance") },
+                                leadingIcon = { Icon(Icons.Default.Palette, null) },
+                                onClick = { menuExpanded = false; showAppearance = true }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("About") },
+                                leadingIcon = { Icon(Icons.Default.Info, null) },
+                                onClick = { menuExpanded = false; showAbout = true }
+                            )
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = { Text("Export Log") },
+                                leadingIcon = { Icon(Icons.Default.BugReport, null) },
+                                onClick = {
+                                    menuExpanded = false
+                                    scope.launch {
+                                        try {
+                                            val src = File(filesDir, "logs/app.log")
+                                            val dst = File("/sdcard/Download/gpgverifier-app.log")
+                                            if (src.exists()) {
+                                                src.copyTo(dst, overwrite = true)
+                                                AppLogger.i("Log exported to ${dst.absolutePath} (${dst.length()} bytes)")
+                                                snackState.showSnackbar("✓ Log exported to Downloads")
+                                            } else snackState.showSnackbar("✗ Log file not found")
+                                        } catch (e: Exception) {
+                                            AppLogger.ex("exportLog", e)
+                                            snackState.showSnackbar("✗ Export failed: ${e.message}")
+                                        }
+                                    }
+                                }
+                            )
+                        }
                     }
                 }
             )
@@ -165,18 +189,21 @@ fun MainScaffold(filesDir: File) {
             }
         }
     ) { innerPadding ->
-        when (selectedTab) {
-            0 -> VerifyScreen(modifier     = Modifier.padding(innerPadding))
-            1 -> SignEncryptScreen(modifier = Modifier.padding(innerPadding))
-            2 -> DecryptScreen(modifier    = Modifier.padding(innerPadding))
-            3 -> KeyringScreen(modifier    = Modifier.padding(innerPadding))
-            4 -> TextViewerScreen(modifier = Modifier.padding(innerPadding))
-            5 -> SettingsScreen(filesDir   = filesDir, modifier = Modifier.padding(innerPadding))
-            6 -> AppearanceScreen(
-                    onThemeChange  = { /* TODO: apply theme */ },
-                    onAccentChange = { /* TODO: apply accent */ },
-                    modifier       = Modifier.padding(innerPadding))
-            7 -> AboutScreen(modifier      = Modifier.padding(innerPadding))
+        when {
+            showSettings   -> SettingsScreen(filesDir = filesDir,
+                                modifier = Modifier.padding(innerPadding))
+            showAppearance -> AppearanceScreen(
+                                onThemeChange  = { /* TODO: apply theme */ },
+                                onAccentChange = { /* TODO: apply accent */ },
+                                modifier       = Modifier.padding(innerPadding))
+            showAbout      -> AboutScreen(modifier = Modifier.padding(innerPadding))
+            else           -> when (selectedTab) {
+                0 -> VerifyScreen(modifier     = Modifier.padding(innerPadding))
+                1 -> SignEncryptScreen(modifier = Modifier.padding(innerPadding))
+                2 -> DecryptScreen(modifier    = Modifier.padding(innerPadding))
+                3 -> KeyringScreen(modifier    = Modifier.padding(innerPadding))
+                4 -> TextViewerScreen(modifier = Modifier.padding(innerPadding))
+            }
         }
     }
 }
