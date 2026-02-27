@@ -174,6 +174,7 @@ fun AppearanceScreen(
                         modifier = Modifier.fillMaxWidth().clickable {
                             fontSize = key
                             AppPreferences.set(context, AppPreferences.KEY_FONT_SIZE, key)
+                            onFontSizeChange(key)
                         }.padding(vertical = 8.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically

@@ -163,15 +163,7 @@ fun SettingsScreen(filesDir: File, modifier: Modifier = Modifier) {
             }
 
             Spacer(Modifier.height(8.dp))
-            Button(
-                onClick = { scope.launch { snack.showSnackbar("✓ Settings saved") } },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-            ) {
-                Icon(Icons.Default.Check, null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.action_apply))
-            }
+
         }
     }
 }
