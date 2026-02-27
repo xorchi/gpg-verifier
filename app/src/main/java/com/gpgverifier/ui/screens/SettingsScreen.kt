@@ -197,7 +197,7 @@ fun SettingsScreen(filesDir: File, modifier: Modifier = Modifier) {
                         Column {
                             Text(stringResource(R.string.settings_app_log), style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Medium)
-                            Text(stringResource(R.string.log_size_kb, (logSize / 1024).toInt())), style = MaterialTheme.typography.labelSmall,
+                            Text(stringResource(R.string.log_size_kb, (logSize / 1024).toInt()), style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                             Text("app.log + rotated logs",
                                 style = MaterialTheme.typography.labelSmall,

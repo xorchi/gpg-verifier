@@ -108,7 +108,7 @@ fun TextViewerScreen(modifier: Modifier = Modifier) {
                         style = MaterialTheme.typography.bodyMedium)
                 }
                 if (fileUri != null) {
-                    Text(stringResource(R.string.file_size_kb, (fileSize / 1024).toInt())), style = MaterialTheme.typography.labelSmall,
+                    Text(stringResource(R.string.file_size_kb, (fileSize / 1024).toInt()), style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
                 }
             }
@@ -133,7 +133,7 @@ fun TextViewerScreen(modifier: Modifier = Modifier) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(stringResource(R.string.file_stats, content.lines().size, fileSize.toInt())),
+                Text(stringResource(R.string.file_stats, content.lines().size, fileSize.toInt()),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {

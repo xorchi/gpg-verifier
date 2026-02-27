@@ -137,7 +137,7 @@ fun DecryptScreen(modifier: Modifier = Modifier) {
                                 }
                             }
 
-                            Text(stringResource(R.string.cache_path, res.outputPath)),
+                            Text(stringResource(R.string.cache_path, res.outputPath),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f))
                         }

@@ -315,7 +315,7 @@ fun KeyCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(key.uids.firstOrNull() ?: key.keyId,
                         fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(stringResource(R.string.key_id_prefix, key.keyId)), style = MaterialTheme.typography.labelSmall,
+                    Text(stringResource(R.string.key_id_prefix, key.keyId), style = MaterialTheme.typography.labelSmall,
                         fontFamily = FontFamily.Monospace,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
                 }
