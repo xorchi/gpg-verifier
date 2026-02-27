@@ -146,9 +146,9 @@ fun AboutScreen(modifier: Modifier = Modifier) {
                             if (index > 0) HorizontalDivider()
                             val badge = if (index == 0) "Current" else null
                             val items = body.lines()
-                                .map { it.trimStart('-', ' ').trim() }
-                                .filter { it.isNotBlank() }
-                                .take(8)
+                                .map { it.trimStart('-', '*', '#', ' ').trim() }
+                                .filter { it.isNotBlank() && !it.startsWith("```") && !it.startsWith("##") }
+                                .take(20)
                             ChangelogEntry(tag, badge, items)
                         }
                     }
