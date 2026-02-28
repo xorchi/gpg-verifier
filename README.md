@@ -7,7 +7,7 @@ Built with **Kotlin + Jetpack Compose**. Uses [Bouncy Castle](https://www.bouncy
 > **Minimum SDK:** Android 8.0 (API 26)  
 > **Build:** Automated via GitHub Actions → APK available under [Releases](../../releases)
 >
-> **Latest Release:** [v1.0.2](https://github.com/xorchi/gpg-verifier/releases/tag/v1.0.2)
+> **Latest Release:** [v1.0.3](https://github.com/xorchi/gpg-verifier/releases/tag/v1.0.3)
 
 ---
 
