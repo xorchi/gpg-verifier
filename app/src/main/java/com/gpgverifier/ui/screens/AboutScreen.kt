@@ -146,9 +146,10 @@ fun AboutScreen(modifier: Modifier = Modifier) {
                             if (index > 0) HorizontalDivider()
                             val badge = if (index == 0) "Current" else null
                             val items = body.lines()
-                                .map { it.trimStart('-', '*', '#', ' ').trim() }
+                                .filter { it.trimStart().let { t -> t.startsWith("-") || t.startsWith("*") } }
+                                .map { it.trimStart('-', '*', ' ').trim() }
                                 .map { it.replace("**", "").replace(Regex("`(.+?)`"), "$1") }
-                                .filter { it.isNotBlank() && !it.startsWith("#") && !it.startsWith("```") && it.length > 15 }
+                                .filter { it.isNotBlank() && it.length > 10 && !it.contains("http") }
                                 .take(15)
                             ChangelogEntry(tag, badge, items)
                         }
